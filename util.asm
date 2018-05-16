@@ -11,11 +11,13 @@ extern sider_read_file:proc
 .code
 sider_read_file_hk proc
 
+        mov     rax,[rsp+28h]
+        sub     rsp,8
         push    r12
-        push    0
+        push    rax
         sub     rsp,20h
         call    sider_read_file
-        add     rsp,30h
+        add     rsp,38h
         ret
 
 sider_read_file_hk endp
