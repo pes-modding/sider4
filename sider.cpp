@@ -27,14 +27,28 @@ using namespace std;
 CRITICAL_SECTION _cs;
 lua_State *L = NULL;
 
+struct FILE_HANDLE_INFO {
+    HANDLE handle;
+    DWORD size;
+    DWORD sizeHigh;
+    DWORD currentOffset;
+    DWORD currentOffsetHigh;
+    DWORD padding[4];
+};
+
 struct READ_STRUCT {
     BYTE b0[0xa0];
     DWORD filesize;
     DWORD dw0;
-    BYTE *someptr;
-    BYTE b1[0x28];
+    FILE_HANDLE_INFO *fileinfo;
+    DWORD offset;
+    DWORD offsetHigh;
+    BYTE b1[0x20];
     char filename[0x80];
 };
+
+typedef unordered_map<string,wstring*> lookup_cache_t;
+lookup_cache_t _lookup_cache;
 
 extern "C" BOOL sider_read_file(
     HANDLE       hFile,
@@ -59,7 +73,38 @@ static HHOOK handle;
 
 bool _is_game(false);
 bool _is_sider(false);
+bool _is_edit_mode(false);
 HANDLE _mh = NULL;
+
+struct module_t {
+    lookup_cache_t *cache;
+    lua_State* L;
+    /*
+    int evt_trophy_check;
+    int evt_lcpk_make_key;
+    int evt_lcpk_get_filepath;
+    int evt_lcpk_rewrite;
+    int evt_set_home_team;
+    int evt_set_away_team;
+    int evt_set_tid;
+    int evt_set_match_time;
+    int evt_set_stadium_choice;
+    int evt_set_stadium;
+    int evt_set_conditions;
+    int evt_after_set_conditions;
+    int evt_set_stadium_for_replay;
+    int evt_set_conditions_for_replay;
+    int evt_after_set_conditions_for_replay;
+    int evt_get_ball_name;
+    int evt_get_stadium_name;
+    int evt_enter_edit_mode;
+    int evt_exit_edit_mode;
+    int evt_enter_replay_gallery;
+    int evt_exit_replay_gallery;
+    */
+};
+list<module_t*> _modules;
+module_t* _curr_m;
 
 wchar_t module_filename[MAX_PATH];
 wchar_t dll_log[MAX_PATH];
@@ -79,6 +124,7 @@ class config_t {
 public:
     bool _debug;
     bool _livecpk_enabled;
+    bool _lookup_cache_enabled;
     bool _lua_enabled;
     bool _luajit_extensions_enabled;
     list<wstring> _lua_extra_globals;
@@ -90,18 +136,19 @@ public:
     list<wstring> _module_names;
     bool _close_sider_on_exit;
     bool _start_minimized;
-    BYTE *_read_file;
+    BYTE *_hp_at_read_file;
 
     ~config_t() {}
-    config_t(const wstring& section_name, const wchar_t* config_ini) : 
+    config_t(const wstring& section_name, const wchar_t* config_ini) :
                  _section_name(section_name),
                  _debug(false),
                  _livecpk_enabled(false),
+                 _lookup_cache_enabled(true),
                  _lua_enabled(true),
                  _luajit_extensions_enabled(false),
                  _close_sider_on_exit(false),
                  _start_minimized(false),
-                 _read_file(NULL)
+                 _hp_at_read_file(NULL)
     {
         wchar_t settings[32767];
         RtlZeroMemory(settings, sizeof(settings));
@@ -123,12 +170,6 @@ public:
             }
             else if (wcscmp(L"lua.module", key.c_str())==0) {
                 _module_names.push_back(value);
-            }
-            else if (wcscmp(L"call.addr.ReadFile", key.c_str())==0) {
-                BYTE *v;
-                if (swscanf(value.c_str(), L"0x%p", &v)==1) {
-                    _read_file = v;
-                };
             }
             else if (wcscmp(L"lua.extra-globals", key.c_str())==0) {
                 bool done(false);
@@ -178,11 +219,15 @@ public:
         _livecpk_enabled = GetPrivateProfileInt(_section_name.c_str(),
             L"livecpk.enabled", _livecpk_enabled,
             config_ini);
-        
+
+        _lookup_cache_enabled = GetPrivateProfileInt(_section_name.c_str(),
+            L"lookup-cache.enabled", _lookup_cache_enabled,
+            config_ini);
+
         _lua_enabled = GetPrivateProfileInt(_section_name.c_str(),
             L"lua.enabled", _lua_enabled,
             config_ini);
-        
+
         _luajit_extensions_enabled = GetPrivateProfileInt(_section_name.c_str(),
             L"luajit.ext.enabled", _luajit_extensions_enabled,
             config_ini);
@@ -346,6 +391,60 @@ static bool is_pes(wchar_t* name, wstring** match)
     return result;
 }
 
+wstring* _have_live_file(char *file_name)
+{
+    wchar_t unicode_filename[512];
+    memset(unicode_filename, 0, sizeof(unicode_filename));
+    Utf8::fUtf8ToUnicode(unicode_filename, file_name);
+
+    wchar_t fn[512];
+    for (list<wstring>::iterator it = _config->_cpk_roots.begin();
+            it != _config->_cpk_roots.end();
+            it++) {
+        memset(fn, 0, sizeof(fn));
+        wcscpy(fn, it->c_str());
+        wchar_t *p = (unicode_filename[0] == L'\\') ? unicode_filename + 1 : unicode_filename;
+        wcscat(fn, p);
+
+        HANDLE handle;
+        handle = CreateFileW(fn,           // file to open
+                           GENERIC_READ,          // open for reading
+                           FILE_SHARE_READ,       // share for reading
+                           NULL,                  // default security
+                           OPEN_EXISTING,         // existing file only
+                           FILE_ATTRIBUTE_NORMAL,  // normal file
+                           NULL);                 // no attr. template
+
+        if (handle != INVALID_HANDLE_VALUE)
+        {
+            CloseHandle(handle);
+            return new wstring(fn);
+        }
+    }
+
+    return NULL;
+}
+
+wstring* have_live_file(char *file_name)
+{
+    //logu_("have_live_file: %p --> %s\n", (DWORD)file_name, file_name);
+    if (!_config->_lookup_cache_enabled) {
+        // no cache
+        return _have_live_file(file_name);
+    }
+    unordered_map<string,wstring*>::iterator it;
+    it = _lookup_cache.find(string(file_name));
+    if (it != _lookup_cache.end()) {
+        return it->second;
+    }
+    else {
+        //logu_("_lookup_cache MISS for (%s)\n", file_name);
+        wstring* res = _have_live_file(file_name);
+        _lookup_cache.insert(pair<string,wstring*>(string(file_name),res));
+        return res;
+    }
+}
+
 bool file_exists(wstring *fullpath)
 {
     HANDLE handle = CreateFileW(
@@ -420,7 +519,242 @@ void hook_indirect_call(BYTE *loc, BYTE *p) {
     }
 }
 
-INT APIENTRY DllMain(HMODULE hDLL, DWORD Reason, LPVOID Reserved) 
+void init_lua_support()
+{
+    if (_config->_lua_enabled) {
+        log_(L"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+        log_(L"Initilizing Lua module system:\n");
+        log_(L"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+
+        // load and initialize lua modules
+        L = luaL_newstate();
+        luaL_openlibs(L);
+
+        // prepare context table
+        push_context_table(L);
+
+        // load registered modules
+        for (list<wstring>::iterator it = _config->_module_names.begin();
+                it != _config->_module_names.end();
+                it++) {
+            // Use Win32 API to read the script into a buffer:
+            // we do not want any nasty surprises with filename encodings
+            wstring script_file(sider_dir);
+            script_file += L"modules\\";
+            script_file += it->c_str();
+
+            log_(L"Loading module: %s ...\n", it->c_str());
+
+            DWORD size = 0;
+            HANDLE handle;
+            handle = CreateFileW(
+                script_file.c_str(),   // file to open
+                GENERIC_READ,          // open for reading
+                FILE_SHARE_READ,       // share for reading
+                NULL,                  // default security
+                OPEN_EXISTING,         // existing file only
+                FILE_ATTRIBUTE_NORMAL, // normal file
+                NULL);                 // no attr. template
+
+            if (handle == INVALID_HANDLE_VALUE)
+            {
+                log_(L"PROBLEM: Unable to open file: %s\n",
+                    script_file.c_str());
+                continue;
+            }
+
+            size = GetFileSize(handle, NULL);
+            BYTE *buf = new BYTE[size+1];
+            memset(buf, 0, size+1);
+            DWORD bytesRead = 0;
+            if (!ReadFile(handle, buf, size, &bytesRead, NULL)) {
+                log_(L"PROBLEM: ReadFile error for lua module: %s\n",
+                    it->c_str());
+                CloseHandle(handle);
+                continue;
+            }
+            CloseHandle(handle);
+            // script is now in memory
+
+            char *mfilename = (char*)Utf8::unicodeToUtf8(it->c_str());
+            string mfile(mfilename);
+            Utf8::free(mfilename);
+            int r = luaL_loadbuffer(L, (const char*)buf, size, mfile.c_str());
+            delete buf;
+            if (r != 0) {
+                const char *err = lua_tostring(L, -1);
+                logu_("Lua module loading problem: %s. "
+                      "Skipping it\n", err);
+                lua_pop(L, 1);
+                continue;
+            }
+
+            // set environment
+            push_env_table(L, it->c_str());
+            lua_setfenv(L, -2);
+
+            // run the module
+            if (lua_pcall(L, 0, 1, 0) != LUA_OK) {
+                const char *err = lua_tostring(L, -1);
+                logu_("Lua module initializing problem: %s. "
+                      "Skipping it\n", err);
+                lua_pop(L, 1);
+                continue;
+            }
+
+            // check that module chunk is correctly constructed:
+            // it must return a table
+            if (!lua_istable(L, -1)) {
+                logu_("PROBLEM: Lua module (%s) must return a table. "
+                      "Skipping it\n", mfile.c_str());
+                lua_pop(L, 1);
+                continue;
+            }
+
+            // now we have module table on the stack
+            // run its "init" method, with a context object
+            lua_getfield(L, -1, "init");
+            if (!lua_isfunction(L, -1)) {
+                logu_("PROBLEM: Lua module (%s) does not "
+                      "have \"init\" function. Skipping it.\n",
+                      mfile.c_str());
+                lua_pop(L, 1);
+                continue;
+            }
+
+            module_t *m = new module_t();
+            memset(m, 0, sizeof(module_t));
+            m->cache = new lookup_cache_t();
+            m->L = luaL_newstate();
+            _curr_m = m;
+
+            lua_pushvalue(L, 1); // ctx
+            if (lua_pcall(L, 1, 0, 0) != LUA_OK) {
+                const char *err = lua_tostring(L, -1);
+                logu_("PROBLEM: Lua module (%s) \"init\" function "
+                      "returned an error: %s\n", mfile.c_str(), err);
+                logu_("Module (%s) is NOT activated\n", mfile.c_str());
+                lua_pop(L, 1);
+                // pop the module table too, since we are not using it
+                lua_pop(L, 1);
+            }
+            else {
+                logu_("OK: Lua module initialized: %s\n", mfile.c_str());
+                logu_("gettop: %d\n", lua_gettop(L));
+
+                // add to list of loaded modules
+                _modules.push_back(m);
+            }
+        }
+        log_(L"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+        log_(L"Lua module system initialized.\n");
+        log_(L"Active modules: %d\n", _modules.size());
+        log_(L"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+    }
+}
+
+bool _install_func(IMAGE_SECTION_HEADER *h);
+
+DWORD install_func(LPVOID thread_param) {
+    log_(L"DLL attaching to (%s).\n", module_filename);
+    log_(L"Mapped into PES.\n");
+    logu_("UTF-8 check: ленинградское время ноль часов ноль минут.\n");
+
+    _is_game = true;
+    _is_edit_mode = false;
+
+    InitializeCriticalSection(&_cs);
+    //_addr_cache = new addr_cache_t(&_cs);
+
+    log_(L"debug = %d\n", _config->_debug);
+    //if (_config->_game_speed) {
+    //    log_(L"game.speed = %0.3f\n", *(_config->_game_speed));
+    //}
+    log_(L"livecpk.enabled = %d\n", _config->_livecpk_enabled);
+    log_(L"lookup-cache.enabled = %d\n", _config->_lookup_cache_enabled);
+    log_(L"lua.enabled = %d\n", _config->_lua_enabled);
+    log_(L"luajit.ext.enabled = %d\n", _config->_luajit_extensions_enabled);
+    //log_(L"address-cache.enabled = %d\n", (int)(!_config->_ac_off));
+    log_(L"close.on.exit = %d\n", _config->_close_sider_on_exit);
+    log_(L"start.minimized = %d\n", _config->_start_minimized);
+
+    for (list<wstring>::iterator it = _config->_cpk_roots.begin();
+            it != _config->_cpk_roots.end();
+            it++) {
+        log_(L"Using cpk.root: %s\n", it->c_str());
+    }
+
+    if (_config->_code_sections.size() == 0) {
+        log_(L"No code sections specified in config: nothing to do then.");
+        return 0;
+    }
+
+    list<wstring>::iterator it = _config->_code_sections.begin();
+    for (; it != _config->_code_sections.end(); it++) {
+        char *section_name = (char*)Utf8::unicodeToUtf8(it->c_str());
+        IMAGE_SECTION_HEADER *h = GetSectionHeader(section_name);
+        Utf8::free(section_name);
+
+        if (!h) {
+            log_(L"Unable to find code section: %s. Skipping\n", it->c_str());
+            continue;
+        }
+        if (h->Misc.VirtualSize < 0x1000000) {
+            log_(L"Section too small: %s (%08x). Skipping\n", it->c_str(), h->Misc.VirtualSize);
+            continue;
+        }
+
+        log_(L"Examining code section: %s\n", it->c_str());
+        if (_install_func(h)) {
+            init_lua_support();
+            break;
+        }
+    }
+    log_(L"Sider initialization complete.\n");
+    return 0;
+}
+
+bool _install_func(IMAGE_SECTION_HEADER *h) {
+    BYTE* base = (BYTE*)GetModuleHandle(NULL);
+    base += h->VirtualAddress;
+    log_(L"Searching code section at: %08x\n", base);
+    bool result(false);
+
+    if (_config->_livecpk_enabled) {
+        BYTE *frag[1];
+        frag[0] = lcpk_pattern_at_read_file;
+        size_t frag_len[1];
+        frag_len[0] = sizeof(lcpk_pattern_at_read_file)-1;
+        int offs[1];
+        offs[0] = lcpk_offs_at_read_file;
+        BYTE **addrs[1];
+        addrs[0] = &_config->_hp_at_read_file;
+
+        bool all_found(true);
+        for (int j=0; j<1; j++) {
+            BYTE *p = find_code_frag(base, h->Misc.VirtualSize,
+                frag[j], frag_len[j]);
+            if (!p) {
+                all_found = false;
+                continue;
+            }
+            *(addrs[j]) = p + offs[j];
+        }
+
+        if (all_found) {
+            // hook ReadFile
+            log_(L"DBG:: sider_read_file: %p\n", sider_read_file);
+            log_(L"DBG:: sider_read_file_hk: %p\n", sider_read_file_hk);
+
+            log_(L"call.addr.ReadFile = %p\n", _config->_read_file);
+            hook_indirect_call(_config->_hp_at_read_file, (BYTE*)sider_read_file_hk);
+        }
+    }
+
+    return result;
+}
+
+INT APIENTRY DllMain(HMODULE hDLL, DWORD Reason, LPVOID Reserved)
 {
     wstring *match = NULL;
     INT result = FALSE;
@@ -459,14 +793,7 @@ INT APIENTRY DllMain(HMODULE hDLL, DWORD Reason, LPVOID Reserved)
                 log_(L"Sider DLL: version %s\n", version.c_str());
                 log_(L"Filename match: %s\n", match->c_str());
 
-                _is_game = true;
-
-                log_(L"DBG:: sider_read_file: %p\n", sider_read_file);
-                log_(L"DBG:: sider_read_file_hk: %p\n", sider_read_file_hk);
-
-                //hook_indirect_call((BYTE*)0x1434bffc0L, (BYTE*)sider_read_file_hk);
-                log_(L"call.addr.ReadFile = %p\n", _config->_read_file);
-                hook_indirect_call(_config->_read_file, (BYTE*)sider_read_file_hk);
+                install_func(NULL);
 
                 delete match;
                 return TRUE;
@@ -510,11 +837,11 @@ INT APIENTRY DllMain(HMODULE hDLL, DWORD Reason, LPVOID Reserved)
             break;
 
     }
- 
+
     return TRUE;
 }
 
-LRESULT CALLBACK meconnect(int code, WPARAM wParam, LPARAM lParam) 
+LRESULT CALLBACK meconnect(int code, WPARAM wParam, LPARAM lParam)
 {
     if (hookingThreadId == GetCurrentThreadId()) {
         log_(L"called in hooking thread!\n");
