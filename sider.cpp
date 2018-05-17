@@ -519,6 +519,125 @@ void hook_indirect_call(BYTE *loc, BYTE *p) {
     }
 }
 
+static void push_context_table(lua_State *L)
+{
+    lua_newtable(L);
+
+    char *sdir = (char*)Utf8::unicodeToUtf8(sider_dir);
+    lua_pushstring(L, sdir);
+    Utf8::free(sdir);
+    lua_setfield(L, -2, "sider_dir");
+
+    //lua_pushcfunction(L, sider_context_register);
+    //lua_setfield(L, -2, "register");
+}
+
+static void push_env_table(lua_State *L, const wchar_t *script_name)
+{
+    char *sandbox[] = {
+        "assert", "table", "pairs", "ipairs",
+        "string", "math", "tonumber", "tostring",
+        "unpack", "error", "_VERSION", "type", "io",
+    };
+
+    lua_newtable(L);
+    for (int i=0; i<sizeof(sandbox)/sizeof(char*); i++) {
+        lua_pushstring(L, sandbox[i]);
+        lua_getglobal(L, sandbox[i]);
+        lua_settable(L, -3);
+    }
+    /* DISABLING FOR NOW, as this is a SECURITY issue
+    // extra globals
+    for (list<wstring>::iterator i = _config->_lua_extra_globals.begin();
+            i != _config->_lua_extra_globals.end();
+            i++) {
+        char *name = (char*)Utf8::unicodeToUtf8(i->c_str());
+        lua_pushstring(L, name);
+        lua_getglobal(L, name);
+        if (lua_isnil(L, -1)) {
+            logu_("WARNING: Unknown Lua global: %s. Skipping it\n",
+                name);
+            lua_pop(L, 2);
+        }
+        else {
+            lua_settable(L, -3);
+        }
+        Utf8::free(name);
+    }
+    */
+
+    // stripped-down os library: with only time, clock, and date
+    char *os_names[] = { "time", "clock", "date" };
+    lua_newtable(L);
+    lua_getglobal(L, "os");
+    for (int i=0; i<sizeof(os_names)/sizeof(char*); i++) {
+        lua_getfield(L, -1, os_names[i]);
+        lua_setfield(L, -3, os_names[i]);
+    }
+    lua_pop(L, 1);
+    lua_setfield(L, -2, "os");
+
+    lua_pushstring(L, "log");
+    lua_pushvalue(L, -2);  // upvalue for sider_log C-function
+    lua_pushcclosure(L, sider_log, 1);
+    lua_settable(L, -3);
+    lua_pushstring(L, "_FILE");
+    char *sname = (char*)Utf8::unicodeToUtf8(script_name);
+    lua_pushstring(L, sname);
+    Utf8::free(sname);
+    lua_settable(L, -3);
+
+    /*
+    // memory lib
+    lua_newtable(L);
+    lua_pushstring(L, "read");
+    lua_pushcclosure(L, memory_read, 0);
+    lua_settable(L, -3);
+    lua_pushstring(L, "write");
+    lua_pushcclosure(L, memory_write, 0);
+    lua_settable(L, -3);
+    lua_pushstring(L, "search");
+    lua_pushcclosure(L, memory_search, 0);
+    lua_settable(L, -3);
+    lua_pushstring(L, "pack");
+    lua_pushcclosure(L, memory_pack, 0);
+    lua_settable(L, -3);
+    lua_pushstring(L, "unpack");
+    lua_pushcclosure(L, memory_unpack, 0);
+    lua_settable(L, -3);
+    lua_setfield(L, -2, "memory");
+
+    // gameplay lib
+    init_gameplay_lib(L);
+
+    // gfx lib
+    init_gfx_lib(L);
+    */
+
+    // set _G
+    lua_pushvalue(L, -1);
+    lua_setfield(L, -2, "_G");
+
+    // load some LuaJIT extenstions
+    if (_config->_luajit_extensions_enabled) {
+        char *ext[] = { "ffi", "bit" };
+        for (int i=0; i<sizeof(ext)/sizeof(char*); i++) {
+            lua_getglobal(L, "require");
+            lua_pushstring(L, ext[i]);
+            if (lua_pcall(L, 1, 1, 0) != 0) {
+                const char *err = luaL_checkstring(L, -1);
+                logu_("Problem loading LuaJIT module (%s): %s\n. "
+                      "Skipping it.\n", ext[i], err);
+                lua_pop(L, 1);
+                continue;
+            }
+            else {
+                lua_setfield(L, -2, ext[i]);
+            }
+        }
+    }
+}
+
 void init_lua_support()
 {
     if (_config->_lua_enabled) {
@@ -746,7 +865,6 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
             log_(L"DBG:: sider_read_file: %p\n", sider_read_file);
             log_(L"DBG:: sider_read_file_hk: %p\n", sider_read_file_hk);
 
-            log_(L"call.addr.ReadFile = %p\n", _config->_read_file);
             hook_indirect_call(_config->_hp_at_read_file, (BYTE*)sider_read_file_hk);
         }
     }
