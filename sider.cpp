@@ -497,7 +497,7 @@ BOOL sider_read_file(
                                FILE_ATTRIBUTE_NORMAL, // normal file
                                NULL);                 // no attr. template
 
-            if (hFile != INVALID_HANDLE_VALUE)
+            if (handle != INVALID_HANDLE_VALUE)
             {
                 // replace file handle
                 orgHandle = hFile;
