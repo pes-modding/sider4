@@ -8,10 +8,10 @@ IMAGE_SECTION_HEADER* GetSectionHeader(char* name)
 {
 	HANDLE hMod = GetModuleHandle(NULL);
 	IMAGE_DOS_HEADER* p = (IMAGE_DOS_HEADER*)hMod;
-	IMAGE_NT_HEADERS* nth = (IMAGE_NT_HEADERS*)((DWORD)hMod + p->e_lfanew);
+	IMAGE_NT_HEADERS* nth = (IMAGE_NT_HEADERS*)((BYTE*)hMod + p->e_lfanew);
 	IMAGE_FILE_HEADER* fh = &(nth->FileHeader);
 	IMAGE_SECTION_HEADER* sec = 
-		(IMAGE_SECTION_HEADER*)((DWORD)fh + sizeof(IMAGE_FILE_HEADER) + fh->SizeOfOptionalHeader);
+		(IMAGE_SECTION_HEADER*)((BYTE*)fh + sizeof(IMAGE_FILE_HEADER) + fh->SizeOfOptionalHeader);
 
 	WORD num = fh->NumberOfSections;
 	for (WORD i=0; i<num; i++)

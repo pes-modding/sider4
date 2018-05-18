@@ -856,8 +856,9 @@ DWORD install_func(LPVOID thread_param) {
             log_(L"Unable to find code section: %s. Skipping\n", it->c_str());
             continue;
         }
-        if (h->Misc.VirtualSize < 0x1000000) {
-            log_(L"Section too small: %s (%08x). Skipping\n", it->c_str(), h->Misc.VirtualSize);
+        logu_("h->Misc.VirtualSize: %p\n", h->Misc.VirtualSize);
+        if (h->Misc.VirtualSize < 0x10000) {
+            log_(L"Section too small: %s (%p). Skipping\n", it->c_str(), h->Misc.VirtualSize);
             continue;
         }
 
@@ -874,7 +875,7 @@ DWORD install_func(LPVOID thread_param) {
 bool _install_func(IMAGE_SECTION_HEADER *h) {
     BYTE* base = (BYTE*)GetModuleHandle(NULL);
     base += h->VirtualAddress;
-    log_(L"Searching code section at: %08x\n", base);
+    log_(L"Searching code section at: %p\n", base);
     bool result(false);
 
     if (_config->_livecpk_enabled) {
@@ -899,6 +900,8 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
         }
 
         if (all_found) {
+            result = true;
+
             // hook ReadFile
             log_(L"DBG:: sider_read_file: %p\n", sider_read_file);
             log_(L"DBG:: sider_read_file_hk: %p\n", sider_read_file_hk);

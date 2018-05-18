@@ -80,16 +80,18 @@ void hook_call_point(
 	}
 }
 
-BYTE* find_code_frag(BYTE *base, DWORD max_offset, BYTE *frag, size_t frag_len)
+BYTE* find_code_frag(BYTE *base, LONGLONG max_offset, BYTE *frag, size_t frag_len)
 {
     BYTE *p = base;
     BYTE *max_p = base + max_offset;
+    logu_("searching range: %p : %p for %lu bytes\n", p, max_p, frag_len);
     while (p < max_p && memcmp(p, frag, frag_len)!=0) {
         p += 1;
     }
     if (p < max_p) {
         return p;
     }
+    logu_("fragment not found.\n");
     return NULL;
 }
 
