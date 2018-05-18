@@ -478,13 +478,51 @@ BOOL sider_read_file(
     struct READ_STRUCT *rs)
 {
     BOOL result;
+    HANDLE orgHandle = hFile;
+    DWORD orgBytesToRead = nNumberOfBytesToRead;
+    HANDLE handle = INVALID_HANDLE_VALUE;
+    wstring *filename = NULL;
+
     log_(L"rs (R12) = %p\n", rs);
     if (rs) {
         logu_("rs->filesize: %x, rs->filename: %s\n", rs->filesize, rs->filename);
+
+        filename = have_live_file(rs->filename);
+        if (filename != NULL) {
+            handle = CreateFileW(filename->c_str(),   // file to open
+                               GENERIC_READ,          // open for reading
+                               FILE_SHARE_READ,       // share for reading
+                               NULL,                  // default security
+                               OPEN_EXISTING,         // existing file only
+                               FILE_ATTRIBUTE_NORMAL, // normal file
+                               NULL);                 // no attr. template
+
+            if (hFile != INVALID_HANDLE_VALUE)
+            {
+                // replace file handle
+                orgHandle = hFile;
+                hFile = handle;
+
+                // set correct offset
+                LONG offsetHigh = rs->offsetHigh;
+                SetFilePointer(hFile, rs->offset, &offsetHigh, FILE_BEGIN);
+                rs->offsetHigh = offsetHigh;
+            }
+        }
     }
+
     result = ReadFile(hFile, lpBuffer, nNumberOfBytesToRead, lpNumberOfBytesRead, lpOverlapped);
     log_(L"ReadFile(%x, %p, %x, %x, %p)\n",
         hFile, lpBuffer, nNumberOfBytesToRead, *lpNumberOfBytesRead, lpOverlapped);
+
+    if (handle != INVALID_HANDLE_VALUE) {
+        CloseHandle(handle);
+
+        // fake a read from cpk
+        *lpNumberOfBytesRead = orgBytesToRead;
+        SetFilePointer(orgHandle, orgBytesToRead, 0, FILE_CURRENT);
+    }
+
     return result;
 }
 
