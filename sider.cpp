@@ -41,8 +41,13 @@ struct READ_STRUCT {
     DWORD filesize;
     DWORD dw0;
     FILE_HANDLE_INFO *fileinfo;
-    DWORD offset;
-    DWORD offsetHigh;
+    union {
+        struct {
+            DWORD low;
+            DWORD high;
+        } parts;
+        LONGLONG full;
+    } offset;
     BYTE b1[0x20];
     char filename[0x80];
 };
@@ -489,6 +494,7 @@ BOOL sider_read_file(
 
         filename = have_live_file(rs->filename);
         if (filename != NULL) {
+            log_(L"livecpk file found: %s\n", filename->c_str());
             handle = CreateFileW(filename->c_str(),   // file to open
                                GENERIC_READ,          // open for reading
                                FILE_SHARE_READ,       // share for reading
@@ -504,9 +510,10 @@ BOOL sider_read_file(
                 hFile = handle;
 
                 // set correct offset
-                LONG offsetHigh = rs->offsetHigh;
-                SetFilePointer(hFile, rs->offset, &offsetHigh, FILE_BEGIN);
-                rs->offsetHigh = offsetHigh;
+                LONG offsetHigh = rs->offset.parts.high;
+                SetFilePointer(hFile, rs->offset.parts.low, &offsetHigh, FILE_BEGIN);
+                rs->offset.parts.high = offsetHigh;
+                log_(L"livecpk file offset: %llx\n", rs->offset.full);
             }
         }
     }
@@ -517,6 +524,11 @@ BOOL sider_read_file(
 
     if (handle != INVALID_HANDLE_VALUE) {
         CloseHandle(handle);
+
+        if (*lpNumberOfBytesRead != orgBytesToRead) {
+            log_(L"file-size adjustment: actually read = %x, reporting as read = %x\n",
+                *lpNumberOfBytesRead, orgBytesToRead);
+        }
 
         // fake a read from cpk
         *lpNumberOfBytesRead = orgBytesToRead;
