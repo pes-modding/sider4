@@ -505,6 +505,10 @@ BOOL sider_read_file(
 
             if (handle != INVALID_HANDLE_VALUE)
             {
+                DWORD sz = GetFileSize(handle, NULL);
+                log_(L"livecpk file size: %x (decimal: %u) vs original size in cpk: %x (decimal: %u)\n",
+                    sz, sz, rs->filesize, rs->filesize);
+
                 // replace file handle
                 orgHandle = hFile;
                 hFile = handle;
