@@ -47,11 +47,12 @@ struct FILE_LOAD_INFO {
     LONGLONG filesize;
     DWORD dw2[2];
     LONGLONG offset_in_cpk;
-    DWORD bytes_to_read;
+    DWORD total_bytes_to_read;
     DWORD max_bytes_to_read;
-    LONGLONG buffer_size;
+    DWORD bytes_to_read;
+    DWORD bytes_read_so_far;
     DWORD dw3[2];
-    LONGLONG buffer_size2;
+    LONGLONG buffer_size;
     BYTE *buffer;
     BYTE *buffer2;
 };
@@ -519,10 +520,12 @@ BOOL sider_read_file(
             logu_("fli->cpk_filename: %s\n", fli->cpk_filename);
             logu_("fli->cpk_filesize: %llx\n", fli->cpk_filesize);
             logu_("fli->offset_in_cpk: %llx\n", fli->offset_in_cpk);
-            logu_("fli->bytes_to_read: %x\n", fli->bytes_to_read);
+            logu_("fli->filesize: %llx\n", fli->filesize);
+            logu_("fli->total_bytes_to_read: %x\n", fli->total_bytes_to_read);
             logu_("fli->max_bytes_to_read: %x\n", fli->max_bytes_to_read);
+            logu_("fli->bytes_read_so_far: %x\n", fli->bytes_read_so_far);
+            logu_("fli->bytes_to_read: %x\n", fli->bytes_to_read);
             logu_("fli->buffer_size: %llx\n", fli->buffer_size);
-            logu_("fli->buffer_size2: %llx\n", fli->buffer_size2);
             logu_("fli->buffer: %p\n", fli->buffer);
             logu_("fli->buffer2: %p\n", fli->buffer2);
         }
@@ -552,24 +555,34 @@ BOOL sider_read_file(
                 LONG offsetHigh = rs->offset.parts.high;
                 SetFilePointer(hFile, rs->offset.parts.low, &offsetHigh, FILE_BEGIN);
                 rs->offset.parts.high = offsetHigh;
-                log_(L"livecpk file offset: %llx\n", rs->offset.full);
+                LONGLONG offset = rs->offset.full;
 
-                // experiment!
+                if (fli) {
+                    // adjust offset for multi-part reads
+                    SetFilePointer(hFile, fli->bytes_read_so_far, NULL, FILE_CURRENT);
+                    offset = offset + fli->bytes_read_so_far;
+                }
+
+                log_(L"livecpk file offset: %llx\n", offset);
+
                 if (rs->filesize != 0xffffffffffffffffL && rs->filesize < sz && fli != NULL) {
-                    // allocate bigger buffer
-                    BYTE* new_buffer = (BYTE*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sz);
+                    // livecpk file is larger than original
 
-                    // update structures
-                    fli->buffer = new_buffer;
-                    fli->buffer2 = new_buffer;
-                    fli->buffer_size = sz;
-                    fli->buffer_size2 = sz;
-
-                    if (fli->bytes_to_read < fli->max_bytes_to_read) {
-                        // last chunk of chunked read or a non-chunked read
-                        fli->bytes_to_read = sz - rs->offset.full;
+                    if (fli->bytes_read_so_far == 0) {
+                        // allocate bigger buffer
+                        BYTE* new_buffer = (BYTE*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sz);
                         lpBuffer = new_buffer;
-                        nNumberOfBytesToRead = fli->bytes_to_read;
+
+                        // update structures
+                        rs->filesize = sz;
+                        fli->buffer_size = sz;
+                        fli->buffer = new_buffer;
+                        fli->buffer2 = new_buffer;
+
+                        if (fli->bytes_to_read < fli->max_bytes_to_read) {
+                            fli->bytes_to_read = sz;
+                            nNumberOfBytesToRead = fli->bytes_to_read;
+                        }
                     }
                 }
             }
@@ -583,14 +596,16 @@ BOOL sider_read_file(
     if (handle != INVALID_HANDLE_VALUE) {
         CloseHandle(handle);
 
-        if (*lpNumberOfBytesRead != orgBytesToRead) {
+        if (orgBytesToRead > *lpNumberOfBytesRead) {
             log_(L"file-size adjustment: actually read = %x, reporting as read = %x\n",
                 *lpNumberOfBytesRead, orgBytesToRead);
         }
 
         // fake a read from cpk
-        *lpNumberOfBytesRead = orgBytesToRead;
-        SetFilePointer(orgHandle, orgBytesToRead, 0, FILE_CURRENT);
+        if (orgBytesToRead > *lpNumberOfBytesRead) {
+            *lpNumberOfBytesRead = orgBytesToRead;
+        }
+        SetFilePointer(orgHandle, *lpNumberOfBytesRead, 0, FILE_CURRENT);
     }
 
     return result;
