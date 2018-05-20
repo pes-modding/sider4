@@ -36,10 +36,29 @@ struct FILE_HANDLE_INFO {
     DWORD padding[4];
 };
 
+struct FILE_LOAD_INFO {
+    BYTE *vtable;
+    FILE_HANDLE_INFO *file_handle_info;
+    DWORD dw0[2];
+    LONGLONG two;
+    DWORD dw1[4];
+    char *cpk_filename;
+    LONGLONG cpk_filesize;
+    LONGLONG filesize;
+    DWORD dw2[2];
+    LONGLONG offset_in_cpk;
+    DWORD bytes_to_read;
+    DWORD max_bytes_to_read;
+    LONGLONG buffer_size;
+    DWORD dw3[2];
+    LONGLONG buffer_size2;
+    BYTE *buffer;
+    BYTE *buffer2;
+};
+
 struct READ_STRUCT {
     BYTE b0[0xa0];
-    DWORD filesize;
-    DWORD dw0;
+    LONGLONG filesize;
     FILE_HANDLE_INFO *fileinfo;
     union {
         struct {
@@ -490,7 +509,23 @@ BOOL sider_read_file(
 
     log_(L"rs (R12) = %p\n", rs);
     if (rs) {
-        logu_("rs->filesize: %x, rs->filename: %s\n", rs->filesize, rs->filename);
+        logu_("rs->filesize: %llx, rs->offset: %llx, rs->filename: %s\n",
+            rs->filesize, rs->offset.full, rs->filename);
+
+        BYTE* p = (BYTE*)rs;
+        FILE_LOAD_INFO *fli = *((FILE_LOAD_INFO **)(p - 0x18));
+        if (fli) {
+            // log some info about this file loading operation
+            logu_("fli->cpk_filename: %s\n", fli->cpk_filename);
+            logu_("fli->cpk_filesize: %llx\n", fli->cpk_filesize);
+            logu_("fli->offset_in_cpk: %llx\n", fli->offset_in_cpk);
+            logu_("fli->bytes_to_read: %x\n", fli->bytes_to_read);
+            logu_("fli->max_bytes_to_read: %x\n", fli->max_bytes_to_read);
+            logu_("fli->buffer_size: %llx\n", fli->buffer_size);
+            logu_("fli->buffer_size2: %llx\n", fli->buffer_size2);
+            logu_("fli->buffer: %p\n", fli->buffer);
+            logu_("fli->buffer2: %p\n", fli->buffer2);
+        }
 
         filename = have_live_file(rs->filename);
         if (filename != NULL) {
@@ -518,6 +553,25 @@ BOOL sider_read_file(
                 SetFilePointer(hFile, rs->offset.parts.low, &offsetHigh, FILE_BEGIN);
                 rs->offset.parts.high = offsetHigh;
                 log_(L"livecpk file offset: %llx\n", rs->offset.full);
+
+                // experiment!
+                if (rs->filesize != 0xffffffffffffffffL && rs->filesize < sz && fli != NULL) {
+                    // allocate bigger buffer
+                    BYTE* new_buffer = (BYTE*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sz);
+
+                    // update structures
+                    fli->buffer = new_buffer;
+                    fli->buffer2 = new_buffer;
+                    fli->buffer_size = sz;
+                    fli->buffer_size2 = sz;
+
+                    if (fli->bytes_to_read < fli->max_bytes_to_read) {
+                        // last chunk of chunked read or a non-chunked read
+                        fli->bytes_to_read = sz - rs->offset.full;
+                        lpBuffer = new_buffer;
+                        nNumberOfBytesToRead = fli->bytes_to_read;
+                    }
+                }
             }
         }
     }
