@@ -4,7 +4,7 @@
 #include "windows.h"
 
 BYTE* find_code_frag(BYTE*, LONGLONG, BYTE*, size_t);
-DWORD get_target_addr(DWORD call_location);
+BYTE* get_target_addr(BYTE* call_location);
 void hook_call_point(DWORD addr, void* func, int codeShift, int numNops, bool addRetn=false);
 
 #endif

@@ -22,6 +22,8 @@
 
 #define DBG if (_config->_debug)
 
+#define smaller(a,b) ((a<b)?a:b)
+
 using namespace std;
 
 CRITICAL_SECTION _cs;
@@ -72,8 +74,21 @@ struct READ_STRUCT {
     char filename[0x80];
 };
 
+struct BUFFER_INFO {
+    LONGLONG data0;
+    BYTE *someptr;
+    LONGLONG data1;
+    BYTE *buffer;
+    BYTE *buffer2;
+    BYTE b0[0x1c0];
+    char *filename;
+};
+
 typedef unordered_map<string,wstring*> lookup_cache_t;
 lookup_cache_t _lookup_cache;
+
+typedef LONGLONG (*pfn_alloc_mem_t)(BUFFER_INFO *bi, LONGLONG size);
+pfn_alloc_mem_t _org_alloc_mem;
 
 extern "C" BOOL sider_read_file(
     HANDLE       hFile,
@@ -83,12 +98,20 @@ extern "C" BOOL sider_read_file(
     LPOVERLAPPED lpOverlapped,
     struct READ_STRUCT *rs);
 
+extern "C" LONGLONG sider_alloc_mem(
+    BUFFER_INFO* bi,
+    LONGLONG     size);
+
 extern "C" BOOL sider_read_file_hk(
     HANDLE       hFile,
     LPVOID       lpBuffer,
     DWORD        nNumberOfBytesToRead,
     LPDWORD      lpNumberOfBytesRead,
     LPOVERLAPPED lpOverlapped);
+
+extern "C" LONGLONG sider_alloc_mem_hk(
+    BUFFER_INFO* bi,
+    LONGLONG     size);
 
 
 static DWORD dwThreadId;
@@ -162,6 +185,7 @@ public:
     bool _close_sider_on_exit;
     bool _start_minimized;
     BYTE *_hp_at_read_file;
+    BYTE *_hp_at_alloc_mem;
 
     ~config_t() {}
     config_t(const wstring& section_name, const wchar_t* config_ini) :
@@ -173,7 +197,8 @@ public:
                  _luajit_extensions_enabled(false),
                  _close_sider_on_exit(false),
                  _start_minimized(false),
-                 _hp_at_read_file(NULL)
+                 _hp_at_read_file(NULL),
+                 _hp_at_alloc_mem(NULL)
     {
         wchar_t settings[32767];
         RtlZeroMemory(settings, sizeof(settings));
@@ -470,7 +495,7 @@ wstring* have_live_file(char *file_name)
     }
 }
 
-bool file_exists(wstring *fullpath)
+bool file_exists(wstring *fullpath, LONGLONG *size)
 {
     HANDLE handle = CreateFileW(
         fullpath->c_str(),     // file to open
@@ -483,6 +508,10 @@ bool file_exists(wstring *fullpath)
 
     if (handle != INVALID_HANDLE_VALUE)
     {
+        if (size != NULL) {
+            DWORD *p = (DWORD*)size;
+            *size = GetFileSize(handle, p+1);
+        }
         CloseHandle(handle);
         return true;
     }
@@ -492,6 +521,25 @@ bool file_exists(wstring *fullpath)
 __declspec(dllexport) bool start_minimized()
 {
     return _config && _config->_start_minimized;
+}
+
+LONGLONG sider_alloc_mem(BUFFER_INFO *bi, LONGLONG size)
+{
+    if (bi) {
+        logu_("alloc_mem:: bi = %p, size = %llx, bi->filename: %s\n", bi, size, bi->filename);
+        wstring *fn = have_live_file(bi->filename);
+        if (fn != NULL) {
+            LONGLONG lcpk_filesize = 0;
+            if (file_exists(fn, &lcpk_filesize)) {
+                log_(L"alloc_mem:: lcpk_filesize = %llx, fn: %s\n", lcpk_filesize, fn->c_str());
+                if (lcpk_filesize > size) {
+                    // ask for bigger buffer
+                    size = lcpk_filesize;
+                }
+            }
+        }
+    }
+    return _org_alloc_mem(bi, size);
 }
 
 BOOL sider_read_file(
@@ -569,18 +617,12 @@ BOOL sider_read_file(
                     // livecpk file is larger than original
 
                     if (fli->bytes_read_so_far == 0) {
-                        // allocate bigger buffer
-                        BYTE* new_buffer = (BYTE*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sz);
-                        lpBuffer = new_buffer;
-
                         // update structures
                         rs->filesize = sz;
                         fli->buffer_size = sz;
-                        fli->buffer = new_buffer;
-                        fli->buffer2 = new_buffer;
 
                         if (fli->bytes_to_read < fli->max_bytes_to_read) {
-                            fli->bytes_to_read = sz;
+                            fli->bytes_to_read = smaller(sz, fli->max_bytes_to_read);
                             nNumberOfBytesToRead = fli->bytes_to_read;
                         }
                     }
@@ -639,6 +681,24 @@ void hook_indirect_call(BYTE *loc, BYTE *p) {
     if (VirtualProtect(addr_loc, 8, newProtection, &protection)) {
         BYTE** v = (BYTE**)addr_loc;
         *v = p;
+        log_(L"hook_indirect_call: hooked at %p\n", loc);
+    }
+}
+
+void hook_call(BYTE *loc, BYTE *p, size_t nops) {
+    if (!loc) {
+        return;
+    }
+    DWORD protection = 0;
+    DWORD newProtection = PAGE_EXECUTE_READWRITE;
+    if (VirtualProtect(loc, 16, newProtection, &protection)) {
+        memcpy(loc, "\x48\xb8", 2);
+        memcpy(loc+2, &p, sizeof(BYTE*));  // mov rax,<target_addr>
+        memcpy(loc+10, "\xff\xd0", 2);      // call rax
+        if (nops) {
+            memset(loc+12, '\x90', nops);  // nop ;one of more nops for padding
+        }
+        log_(L"hook_call: hooked at %p\n", loc);
     }
 }
 
@@ -957,6 +1017,13 @@ DWORD install_func(LPVOID thread_param) {
     return 0;
 }
 
+bool all_found(config_t *cfg) {
+    return (
+        cfg->_hp_at_read_file > 0 &&
+        cfg->_hp_at_alloc_mem > 0
+    );
+}
+
 bool _install_func(IMAGE_SECTION_HEADER *h) {
     BYTE* base = (BYTE*)GetModuleHandle(NULL);
     base += h->VirtualAddress;
@@ -964,27 +1031,29 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
     bool result(false);
 
     if (_config->_livecpk_enabled) {
-        BYTE *frag[1];
+        BYTE *frag[2];
         frag[0] = lcpk_pattern_at_read_file;
-        size_t frag_len[1];
+        frag[1] = lcpk_pattern_at_alloc_mem;
+        size_t frag_len[2];
         frag_len[0] = sizeof(lcpk_pattern_at_read_file)-1;
-        int offs[1];
+        frag_len[1] = sizeof(lcpk_pattern_at_alloc_mem)-1;
+        int offs[2];
         offs[0] = lcpk_offs_at_read_file;
-        BYTE **addrs[1];
+        offs[1] = lcpk_offs_at_alloc_mem;
+        BYTE **addrs[2];
         addrs[0] = &_config->_hp_at_read_file;
+        addrs[1] = &_config->_hp_at_alloc_mem;
 
-        bool all_found(true);
-        for (int j=0; j<1; j++) {
+        for (int j=0; j<2; j++) {
             BYTE *p = find_code_frag(base, h->Misc.VirtualSize,
                 frag[j], frag_len[j]);
             if (!p) {
-                all_found = false;
                 continue;
             }
             *(addrs[j]) = p + offs[j];
         }
 
-        if (all_found) {
+        if (all_found(_config)) {
             result = true;
 
             // hook ReadFile
@@ -992,6 +1061,9 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
             log_(L"DBG:: sider_read_file_hk: %p\n", sider_read_file_hk);
 
             hook_indirect_call(_config->_hp_at_read_file, (BYTE*)sider_read_file_hk);
+
+            _org_alloc_mem = (pfn_alloc_mem_t)get_target_addr(_config->_hp_at_alloc_mem);
+            hook_call(_config->_hp_at_alloc_mem, (BYTE*)sider_alloc_mem_hk, 5);
         }
     }
 

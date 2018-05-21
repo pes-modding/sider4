@@ -43,19 +43,19 @@ __declspec(dllexport) void start_log_(const wchar_t *format, ...)
     }
 }
 
-DWORD get_target_addr(DWORD call_location)
+BYTE* get_target_addr(BYTE* call_location)
 {
     if (call_location) {
-        BYTE* bptr = (BYTE*)call_location;
+        BYTE* bptr = call_location;
         DWORD protection = 0;
         DWORD newProtection = PAGE_EXECUTE_READWRITE;
         if (VirtualProtect(bptr, 8, newProtection, &protection)) {
             // get original target
             DWORD* ptr = (DWORD*)(call_location + 1);
-            return (DWORD)(ptr[0] + call_location + 5);
+            return call_location + ptr[0] + 5;
         }
     }
-    return 0;
+    return NULL;
 }
 
 void hook_call_point(
@@ -91,7 +91,6 @@ BYTE* find_code_frag(BYTE *base, LONGLONG max_offset, BYTE *frag, size_t frag_le
     if (p < max_p) {
         return p;
     }
-    logu_("fragment not found.\n");
     return NULL;
 }
 
