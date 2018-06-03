@@ -7,7 +7,7 @@
 ;------------------------------------------
 
 extern sider_read_file:proc
-extern sider_alloc_mem:proc
+extern sider_get_size:proc
 
 .code
 sider_read_file_hk proc
@@ -23,15 +23,17 @@ sider_read_file_hk proc
 
 sider_read_file_hk endp
 
-sider_alloc_mem_hk proc
+sider_get_size_hk proc
 
+        mov     rcx,rsi
+        mov     rdx,rbx
         sub     rsp,28h
-        call    sider_alloc_mem
+        call    sider_get_size
         add     rsp,28h
-        mov     qword ptr [rdi+rbx*8+18h],rax  ;run overwritten code
-        movsxd  rcx,dword ptr [rdi+254h]       ;run overwritten code
+        mov     rcx,qword ptr [rdi+1d8h]
+        mov     eax,1
         ret
 
-sider_alloc_mem_hk endp
+sider_get_size_hk endp
 
 end

@@ -84,11 +84,17 @@ struct BUFFER_INFO {
     char *filename;
 };
 
+struct FILE_INFO {
+    DWORD size;
+    DWORD size_uncompressed;
+    LONGLONG offset_in_cpk;
+};
+
 typedef unordered_map<string,wstring*> lookup_cache_t;
 lookup_cache_t _lookup_cache;
 
-typedef LONGLONG (*pfn_alloc_mem_t)(BUFFER_INFO *bi, LONGLONG size);
-pfn_alloc_mem_t _org_alloc_mem;
+//typedef LONGLONG (*pfn_alloc_mem_t)(BUFFER_INFO *bi, LONGLONG size);
+//pfn_alloc_mem_t _org_alloc_mem;
 
 extern "C" BOOL sider_read_file(
     HANDLE       hFile,
@@ -98,9 +104,7 @@ extern "C" BOOL sider_read_file(
     LPOVERLAPPED lpOverlapped,
     struct READ_STRUCT *rs);
 
-extern "C" LONGLONG sider_alloc_mem(
-    BUFFER_INFO* bi,
-    LONGLONG     size);
+extern "C" void sider_get_size(char *filename, struct FILE_INFO *fi);
 
 extern "C" BOOL sider_read_file_hk(
     HANDLE       hFile,
@@ -109,10 +113,7 @@ extern "C" BOOL sider_read_file_hk(
     LPDWORD      lpNumberOfBytesRead,
     LPOVERLAPPED lpOverlapped);
 
-extern "C" LONGLONG sider_alloc_mem_hk(
-    BUFFER_INFO* bi,
-    LONGLONG     size);
-
+extern "C" void sider_get_size_hk();
 
 static DWORD dwThreadId;
 static DWORD hookingThreadId = 0;
@@ -185,7 +186,7 @@ public:
     bool _close_sider_on_exit;
     bool _start_minimized;
     BYTE *_hp_at_read_file;
-    BYTE *_hp_at_alloc_mem;
+    BYTE *_hp_at_get_size;
 
     ~config_t() {}
     config_t(const wstring& section_name, const wchar_t* config_ini) :
@@ -198,7 +199,7 @@ public:
                  _close_sider_on_exit(false),
                  _start_minimized(false),
                  _hp_at_read_file(NULL),
-                 _hp_at_alloc_mem(NULL)
+                 _hp_at_get_size(NULL)
     {
         wchar_t settings[32767];
         RtlZeroMemory(settings, sizeof(settings));
@@ -523,23 +524,29 @@ __declspec(dllexport) bool start_minimized()
     return _config && _config->_start_minimized;
 }
 
-LONGLONG sider_alloc_mem(BUFFER_INFO *bi, LONGLONG size)
+void sider_get_size(char *filename, struct FILE_INFO *fi)
 {
-    if (bi) {
-        logu_("alloc_mem:: bi = %p, size = %llx, bi->filename: %s\n", bi, size, bi->filename);
-        wstring *fn = have_live_file(bi->filename);
-        if (fn != NULL) {
-            LONGLONG lcpk_filesize = 0;
-            if (file_exists(fn, &lcpk_filesize)) {
-                log_(L"alloc_mem:: lcpk_filesize = %llx, fn: %s\n", lcpk_filesize, fn->c_str());
-                if (lcpk_filesize > size) {
-                    // ask for bigger buffer
-                    size = lcpk_filesize;
-                }
-            }
+    wstring *fn;
+    fn = have_live_file(filename);
+    if (fn != NULL) {
+        log_(L"get_size:: livecpk file found: %s\n", fn->c_str());
+        HANDLE handle = CreateFileW(fn->c_str(),  // file to open
+                           GENERIC_READ,          // open for reading
+                           FILE_SHARE_READ,       // share for reading
+                           NULL,                  // default security
+                           OPEN_EXISTING,         // existing file only
+                           FILE_ATTRIBUTE_NORMAL, // normal file
+                           NULL);                 // no attr. template
+
+        if (handle != INVALID_HANDLE_VALUE)
+        {
+            DWORD sz = GetFileSize(handle, NULL);
+            log_(L"get_size:: livecpk file size: %x vs original size in cpk: %x\n", sz, fi->size);
+            CloseHandle(handle);
+            fi->size = sz;
+            fi->size_uncompressed = sz;
         }
     }
-    return _org_alloc_mem(bi, size);
 }
 
 BOOL sider_read_file(
@@ -556,13 +563,14 @@ BOOL sider_read_file(
     HANDLE handle = INVALID_HANDLE_VALUE;
     wstring *filename = NULL;
 
-    log_(L"rs (R12) = %p\n", rs);
+    //log_(L"rs (R12) = %p\n", rs);
     if (rs) {
-        logu_("rs->filesize: %llx, rs->offset: %llx, rs->filename: %s\n",
-            rs->filesize, rs->offset.full, rs->filename);
+        //logu_("rs->filesize: %llx, rs->offset: %llx, rs->filename: %s\n",
+        //    rs->filesize, rs->offset.full, rs->filename);
 
         BYTE* p = (BYTE*)rs;
         FILE_LOAD_INFO *fli = *((FILE_LOAD_INFO **)(p - 0x18));
+        /*
         if (fli) {
             // log some info about this file loading operation
             logu_("fli->cpk_filename: %s\n", fli->cpk_filename);
@@ -577,6 +585,7 @@ BOOL sider_read_file(
             logu_("fli->buffer: %p\n", fli->buffer);
             logu_("fli->buffer2: %p\n", fli->buffer2);
         }
+        */
 
         filename = have_live_file(rs->filename);
         if (filename != NULL) {
@@ -592,8 +601,8 @@ BOOL sider_read_file(
             if (handle != INVALID_HANDLE_VALUE)
             {
                 DWORD sz = GetFileSize(handle, NULL);
-                log_(L"livecpk file size: %x (decimal: %u) vs original size in cpk: %x (decimal: %u)\n",
-                    sz, sz, rs->filesize, rs->filesize);
+                //log_(L"livecpk file size: %x (decimal: %u) vs original size in cpk: %x (decimal: %u)\n",
+                //    sz, sz, rs->filesize, rs->filesize);
 
                 // replace file handle
                 orgHandle = hFile;
@@ -613,6 +622,7 @@ BOOL sider_read_file(
 
                 log_(L"livecpk file offset: %llx\n", offset);
 
+                /*
                 if (rs->filesize != 0xffffffffffffffffL && rs->filesize < sz && fli != NULL) {
                     // livecpk file is larger than original
 
@@ -627,20 +637,23 @@ BOOL sider_read_file(
                         }
                     }
                 }
+                */
             }
         }
     }
 
     result = ReadFile(hFile, lpBuffer, nNumberOfBytesToRead, lpNumberOfBytesRead, lpOverlapped);
-    log_(L"ReadFile(%x, %p, %x, %x, %p)\n",
-        hFile, lpBuffer, nNumberOfBytesToRead, *lpNumberOfBytesRead, lpOverlapped);
+    //log_(L"ReadFile(%x, %p, %x, %x, %p)\n",
+    //    hFile, lpBuffer, nNumberOfBytesToRead, *lpNumberOfBytesRead, lpOverlapped);
 
     if (handle != INVALID_HANDLE_VALUE) {
+        log_(L"ReadFile(%x, %p, %x, %x, %p)\n",
+            hFile, lpBuffer, nNumberOfBytesToRead, *lpNumberOfBytesRead, lpOverlapped);
         CloseHandle(handle);
 
         if (orgBytesToRead > *lpNumberOfBytesRead) {
-            log_(L"file-size adjustment: actually read = %x, reporting as read = %x\n",
-                *lpNumberOfBytesRead, orgBytesToRead);
+            //log_(L"file-size adjustment: actually read = %x, reporting as read = %x\n",
+            //    *lpNumberOfBytesRead, orgBytesToRead);
         }
 
         // fake a read from cpk
@@ -1020,7 +1033,7 @@ DWORD install_func(LPVOID thread_param) {
 bool all_found(config_t *cfg) {
     return (
         cfg->_hp_at_read_file > 0 &&
-        cfg->_hp_at_alloc_mem > 0
+        cfg->_hp_at_get_size > 0
     );
 }
 
@@ -1033,16 +1046,16 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
     if (_config->_livecpk_enabled) {
         BYTE *frag[2];
         frag[0] = lcpk_pattern_at_read_file;
-        frag[1] = lcpk_pattern_at_alloc_mem;
+        frag[1] = lcpk_pattern_at_get_size;
         size_t frag_len[2];
         frag_len[0] = sizeof(lcpk_pattern_at_read_file)-1;
-        frag_len[1] = sizeof(lcpk_pattern_at_alloc_mem)-1;
+        frag_len[1] = sizeof(lcpk_pattern_at_get_size)-1;
         int offs[2];
         offs[0] = lcpk_offs_at_read_file;
-        offs[1] = lcpk_offs_at_alloc_mem;
+        offs[1] = lcpk_offs_at_get_size;
         BYTE **addrs[2];
         addrs[0] = &_config->_hp_at_read_file;
-        addrs[1] = &_config->_hp_at_alloc_mem;
+        addrs[1] = &_config->_hp_at_get_size;
 
         for (int j=0; j<2; j++) {
             BYTE *p = find_code_frag(base, h->Misc.VirtualSize,
@@ -1056,14 +1069,12 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
         if (all_found(_config)) {
             result = true;
 
-            // hook ReadFile
-            log_(L"DBG:: sider_read_file: %p\n", sider_read_file);
+            // hooks
             log_(L"DBG:: sider_read_file_hk: %p\n", sider_read_file_hk);
+            log_(L"DBG:: sider_get_size_hk: %p\n", sider_get_size_hk);
 
             hook_indirect_call(_config->_hp_at_read_file, (BYTE*)sider_read_file_hk);
-
-            _org_alloc_mem = (pfn_alloc_mem_t)get_target_addr(_config->_hp_at_alloc_mem);
-            hook_call(_config->_hp_at_alloc_mem, (BYTE*)sider_alloc_mem_hk, 5);
+            hook_call(_config->_hp_at_get_size, (BYTE*)sider_get_size_hk, 0);
         }
     }
 

@@ -12,12 +12,12 @@ static BYTE lcpk_pattern_at_read_file[23] =
     "\xff\x15";
 static int lcpk_offs_at_read_file = 20;
 
-static BYTE lcpk_pattern_at_alloc_mem[19] =
-    "\x48\x89\x44\xdf\x18"
-    "\x48\x63\x8f\x54\x02\x00\x00"
-    "\x48\x8b\xd0"
-    "\x8d\x41\xff";
-static int lcpk_offs_at_alloc_mem = -5;
+static BYTE lcpk_pattern_at_get_size[14] =
+    "\x8b\x44\x24\x34"
+    "\x89\x43\x04"
+    "\x8b\x44\x24\x30"
+    "\x89\x03";
+static int lcpk_offs_at_get_size = 13;
 
 #endif
 
