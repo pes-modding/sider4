@@ -36,4 +36,13 @@ sider_get_size_hk proc
 
 sider_get_size_hk endp
 
+sider_extend_cpk_hk proc
+
+        mov     rax,1000000000000000h
+        mov     qword ptr [rdi+8],rax
+        mov     qword ptr [r13],rdi
+        ret
+
+sider_extend_cpk_hk endp
+
 end

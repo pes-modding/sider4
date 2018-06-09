@@ -115,6 +115,8 @@ extern "C" BOOL sider_read_file_hk(
 
 extern "C" void sider_get_size_hk();
 
+extern "C" void sider_extend_cpk_hk();
+
 static DWORD dwThreadId;
 static DWORD hookingThreadId = 0;
 static HMODULE myHDLL;
@@ -187,6 +189,7 @@ public:
     bool _start_minimized;
     BYTE *_hp_at_read_file;
     BYTE *_hp_at_get_size;
+    BYTE *_hp_at_extend_cpk;
 
     ~config_t() {}
     config_t(const wstring& section_name, const wchar_t* config_ini) :
@@ -199,7 +202,8 @@ public:
                  _close_sider_on_exit(false),
                  _start_minimized(false),
                  _hp_at_read_file(NULL),
-                 _hp_at_get_size(NULL)
+                 _hp_at_get_size(NULL),
+                 _hp_at_extend_cpk(NULL)
     {
         wchar_t settings[32767];
         RtlZeroMemory(settings, sizeof(settings));
@@ -620,21 +624,15 @@ BOOL sider_read_file(
                     SetFilePointer(hFile, fli->bytes_read_so_far, NULL, FILE_CURRENT);
                     offset = offset + fli->bytes_read_so_far;
 
-                    logu_("read_file:: fli->total_bytes_to_read: %x\n", fli->total_bytes_to_read);
-                    logu_("read_file:: fli->max_bytes_to_read: %x\n", fli->max_bytes_to_read);
-                    logu_("read_file:: fli->bytes_to_read: %x\n", fli->bytes_to_read);
-                    logu_("read_file:: fli->bytes_read_so_far: %x\n", fli->bytes_read_so_far);
-                    logu_("read_file:: fli->filesize: %llx\n", fli->filesize);
-                    logu_("read_file:: fli->buffer_size: %llx\n", fli->buffer_size);
-
-                    // adjust read byte-count, if reading beyond limit of cpk
-                    if (fli->offset_in_cpk + fli->total_bytes_to_read > fli->cpk_filesize) {
-                        fli->bytes_to_read = smaller(fli->max_bytes_to_read, fli->total_bytes_to_read);
-                        nNumberOfBytesToRead = fli->bytes_to_read;
-                    }
-
-                    logu_("read_file:: fli->cpk_filename: %s\n", fli->cpk_filename);
-                    logu_("read_file:: fli->offset_in_cpk: %llx\n", fli->offset_in_cpk);
+                    // trace file read info
+                    DBG logu_("read_file:: fli->total_bytes_to_read: %x\n", fli->total_bytes_to_read);
+                    DBG logu_("read_file:: fli->max_bytes_to_read: %x\n", fli->max_bytes_to_read);
+                    DBG logu_("read_file:: fli->bytes_to_read: %x\n", fli->bytes_to_read);
+                    DBG logu_("read_file:: fli->bytes_read_so_far: %x\n", fli->bytes_read_so_far);
+                    DBG logu_("read_file:: fli->filesize: %llx\n", fli->filesize);
+                    DBG logu_("read_file:: fli->buffer_size: %llx\n", fli->buffer_size);
+                    DBG logu_("read_file:: fli->cpk_filename: %s\n", fli->cpk_filename);
+                    DBG logu_("read_file:: fli->offset_in_cpk: %llx\n", fli->offset_in_cpk);
                 }
 
                 log_(L"read_file:: livecpk file offset: %llx\n", offset);
@@ -1033,7 +1031,8 @@ DWORD install_func(LPVOID thread_param) {
 bool all_found(config_t *cfg) {
     return (
         cfg->_hp_at_read_file > 0 &&
-        cfg->_hp_at_get_size > 0
+        cfg->_hp_at_get_size > 0 &&
+        cfg->_hp_at_extend_cpk > 0
     );
 }
 
@@ -1043,21 +1042,26 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
     log_(L"Searching code section at: %p\n", base);
     bool result(false);
 
+#define NUM_PATTERNS 3
     if (_config->_livecpk_enabled) {
-        BYTE *frag[2];
+        BYTE *frag[NUM_PATTERNS];
         frag[0] = lcpk_pattern_at_read_file;
         frag[1] = lcpk_pattern_at_get_size;
-        size_t frag_len[2];
+        frag[2] = lcpk_pattern_at_write_cpk_filesize;
+        size_t frag_len[NUM_PATTERNS];
         frag_len[0] = sizeof(lcpk_pattern_at_read_file)-1;
         frag_len[1] = sizeof(lcpk_pattern_at_get_size)-1;
-        int offs[2];
+        frag_len[2] = sizeof(lcpk_pattern_at_write_cpk_filesize)-1;
+        int offs[NUM_PATTERNS];
         offs[0] = lcpk_offs_at_read_file;
         offs[1] = lcpk_offs_at_get_size;
-        BYTE **addrs[2];
+        offs[2] = lcpk_offs_at_write_cpk_filesize;
+        BYTE **addrs[NUM_PATTERNS];
         addrs[0] = &_config->_hp_at_read_file;
         addrs[1] = &_config->_hp_at_get_size;
+        addrs[2] = &_config->_hp_at_extend_cpk;
 
-        for (int j=0; j<2; j++) {
+        for (int j=0; j<NUM_PATTERNS; j++) {
             BYTE *p = find_code_frag(base, h->Misc.VirtualSize,
                 frag[j], frag_len[j]);
             if (!p) {
@@ -1072,9 +1076,11 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
             // hooks
             log_(L"DBG:: sider_read_file_hk: %p\n", sider_read_file_hk);
             log_(L"DBG:: sider_get_size_hk: %p\n", sider_get_size_hk);
+            log_(L"DBG:: sider_extend_cpk_hk: %p\n", sider_extend_cpk_hk);
 
             hook_indirect_call(_config->_hp_at_read_file, (BYTE*)sider_read_file_hk);
             hook_call(_config->_hp_at_get_size, (BYTE*)sider_get_size_hk, 0);
+            hook_call(_config->_hp_at_extend_cpk, (BYTE*)sider_extend_cpk_hk, 1);
         }
     }
 

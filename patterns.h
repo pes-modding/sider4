@@ -12,12 +12,22 @@ static BYTE lcpk_pattern_at_read_file[23] =
     "\xff\x15";
 static int lcpk_offs_at_read_file = 20;
 
-static BYTE lcpk_pattern_at_get_size[14] =
+static BYTE lcpk_pattern_at_get_size[25] =
+    "\xeb\x05"
+    "\xe8\x7b\xf3\xff\xff"
+    "\x85\xc0"
+    "\x74\x24"
     "\x8b\x44\x24\x34"
     "\x89\x43\x04"
     "\x8b\x44\x24\x30"
     "\x89\x03";
-static int lcpk_offs_at_get_size = 13;
+static int lcpk_offs_at_get_size = 24;
+
+static BYTE lcpk_pattern_at_write_cpk_filesize[16] =
+    "\x48\x8b\x44\x24\x48"
+    "\x48\x89\x47\x08"
+    "\x49\x89\x7d\x00"
+    "\x33\xc0";
+static int lcpk_offs_at_write_cpk_filesize = 0;
 
 #endif
-
