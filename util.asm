@@ -8,6 +8,7 @@
 
 extern sider_read_file:proc
 extern sider_get_size:proc
+extern sider_mem_copy:proc
 
 .code
 sider_read_file_hk proc
@@ -44,5 +45,17 @@ sider_extend_cpk_hk proc
         ret
 
 sider_extend_cpk_hk endp
+
+sider_mem_copy_hk proc
+
+        add     r8,r10
+        push    r12
+        sub     rsp,20h
+        call    sider_mem_copy
+        add     rsp,28h
+        mov     qword ptr [rdi+10h],rbx
+        ret
+
+sider_mem_copy_hk endp
 
 end

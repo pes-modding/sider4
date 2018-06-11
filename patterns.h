@@ -30,4 +30,11 @@ static BYTE lcpk_pattern_at_write_cpk_filesize[16] =
     "\x33\xc0";
 static int lcpk_offs_at_write_cpk_filesize = 0;
 
+static BYTE lcpk_pattern_at_mem_copy[13] =
+    "\x4c\x8b\x01"
+    "\x4c\x8b\xcb"
+    "\x49\x8b\xcb"
+    "\x4d\x03\xc2";
+static int lcpk_offs_at_mem_copy = 9;
+
 #endif
