@@ -29,6 +29,8 @@
 
 //#define KNOWN_FILENAME "common\\etc\\pesdb\\Coach.bin"
 #define KNOWN_FILENAME "Fox\\Scripts\\Gr\\init.lua"
+char _file_to_lookup[0x80];
+size_t _file_to_lookup_size = 0;
 
 using namespace std;
 
@@ -755,7 +757,8 @@ void sider_mem_copy(BYTE *dst, LONGLONG dst_len, BYTE *src, LONGLONG src_len, st
 void sider_lookup_file(LONGLONG p1, LONGLONG p2, char *filename)
 {
     // quick check if we already modified this path
-    char *p = filename + strlen(filename) + 1;
+    size_t len = strlen(filename);
+    char *p = filename + len + 1;
     if (*(DWORD*)p == MAGIC) {
         // already did this.
         return;
@@ -769,12 +772,9 @@ void sider_lookup_file(LONGLONG p1, LONGLONG p2, char *filename)
         // trick: pick a filename that we know exists
         // put our filename after it, separated by MAGIC marker
         char temp[0x100];
-        strncpy(temp, filename, 0x100);
-        strcpy(filename, KNOWN_FILENAME);
-        char *tail = filename + strlen(filename) + 1;
-        *(DWORD*)tail = MAGIC;
-        tail[4] = '\0';
-        strcpy(tail+5,temp);
+        memcpy(temp, filename, len+1);
+        memcpy(filename, _file_to_lookup, _file_to_lookup_size);
+        memcpy(filename + _file_to_lookup_size, temp, len+1);
     }
     else {
         // not found. But still mark it with magic
@@ -1094,6 +1094,11 @@ DWORD install_func(LPVOID thread_param) {
 
     _is_game = true;
     _is_edit_mode = false;
+
+    // initialize filename replacement trick
+    strncpy(_file_to_lookup, KNOWN_FILENAME, sizeof(_file_to_lookup)-1);
+    *(DWORD*)(_file_to_lookup + strlen(_file_to_lookup) + 1) = MAGIC;
+    _file_to_lookup_size = strlen(_file_to_lookup) + 1 + 4 + 1;
 
     InitializeCriticalSection(&_cs);
     //_addr_cache = new addr_cache_t(&_cs);
