@@ -9,6 +9,7 @@
 extern sider_read_file:proc
 extern sider_get_size:proc
 extern sider_mem_copy:proc
+extern sider_lookup_file:proc
 
 .code
 sider_read_file_hk proc
@@ -57,5 +58,19 @@ sider_mem_copy_hk proc
         ret
 
 sider_mem_copy_hk endp
+
+sider_lookup_file_hk proc
+
+        push    rax
+        sub     rsp,28h
+        call    sider_lookup_file
+        add     rsp,28h
+        pop     rax
+        lea     rcx,qword ptr [rdi+110h]
+        mov     r8,rsi
+        lea     rdx,qword ptr [rsp+28h]
+        ret
+
+sider_lookup_file_hk endp
 
 end

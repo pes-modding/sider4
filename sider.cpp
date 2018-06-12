@@ -20,10 +20,15 @@
 #define LUA_OK 0
 #endif
 
-#define DBG1 if (_config->_debug & 1)
-#define DBG2 if (_config->_debug & 2)
+#define DBG(n) if (_config->_debug & n)
 
 #define smaller(a,b) ((a<b)?a:b)
+
+// "sdr4" magic string
+#define MAGIC 0x34726473
+
+//#define KNOWN_FILENAME "common\\etc\\pesdb\\Coach.bin"
+#define KNOWN_FILENAME "Fox\\Scripts\\Gr\\init.lua"
 
 using namespace std;
 
@@ -122,6 +127,10 @@ extern "C" void sider_mem_copy(BYTE *dst, LONGLONG dst_len, BYTE *src, LONGLONG 
 
 extern "C" void sider_mem_copy_hk();
 
+extern "C" void sider_lookup_file(LONGLONG p1, LONGLONG p2, char *filename);
+
+extern "C" void sider_lookup_file_hk();
+
 static DWORD dwThreadId;
 static DWORD hookingThreadId = 0;
 static HMODULE myHDLL;
@@ -196,6 +205,7 @@ public:
     BYTE *_hp_at_get_size;
     BYTE *_hp_at_extend_cpk;
     BYTE *_hp_at_mem_copy;
+    BYTE *_hp_at_lookup_file;
 
     ~config_t() {}
     config_t(const wstring& section_name, const wchar_t* config_ini) :
@@ -210,7 +220,8 @@ public:
                  _hp_at_read_file(NULL),
                  _hp_at_get_size(NULL),
                  _hp_at_extend_cpk(NULL),
-                 _hp_at_mem_copy(NULL)
+                 _hp_at_mem_copy(NULL),
+                 _hp_at_lookup_file(NULL)
     {
         wchar_t settings[32767];
         RtlZeroMemory(settings, sizeof(settings));
@@ -535,12 +546,27 @@ __declspec(dllexport) bool start_minimized()
     return _config && _config->_start_minimized;
 }
 
+inline char *get_tailname(char *filename)
+{
+    char *tail = filename + strlen(filename) + 1;
+    if (*(DWORD*)tail == MAGIC) {
+        return tail+5;
+    }
+    return filename;
+}
+
 void sider_get_size(char *filename, struct FILE_INFO *fi)
 {
-    wstring *fn;
-    fn = have_live_file(filename);
+    char *fname = get_tailname(filename);
+    if (fname[0]=='\0') {
+        // no tail name: nothing to do
+        return;
+    }
+    DBG(4) logu_("get_size:: tailname: %s\n", fname);
+
+    wstring *fn = have_live_file(fname);
     if (fn != NULL) {
-        log_(L"get_size:: livecpk file found: %s\n", fn->c_str());
+        DBG(4) log_(L"get_size:: livecpk file found: %s\n", fn->c_str());
         HANDLE handle = CreateFileW(fn->c_str(),  // file to open
                            GENERIC_READ,          // open for reading
                            FILE_SHARE_READ,       // share for reading
@@ -552,11 +578,14 @@ void sider_get_size(char *filename, struct FILE_INFO *fi)
         if (handle != INVALID_HANDLE_VALUE)
         {
             DWORD sz = GetFileSize(handle, NULL);
-            log_(L"get_size:: livecpk file size: %x vs original size in cpk: %x / %x\n", sz, fi->size, fi->size_uncompressed);
+            DBG(4) log_(L"get_size:: livecpk file size: %x\n", sz);
             CloseHandle(handle);
             fi->size = sz;
             fi->size_uncompressed = sz;
             //fi->offset_in_cpk = 0;
+
+            // restore the tail name
+            strcpy(filename, fname);
         }
     }
 }
@@ -577,31 +606,15 @@ BOOL sider_read_file(
 
     //log_(L"rs (R12) = %p\n", rs);
     if (rs) {
-        DBG1 logu_("read_file:: rs->filesize: %llx, rs->offset: %llx, rs->filename: %s\n",
+        DBG(1) logu_("read_file:: rs->filesize: %llx, rs->offset: %llx, rs->filename: %s\n",
             rs->filesize, rs->offset.full, rs->filename);
 
         BYTE* p = (BYTE*)rs;
         FILE_LOAD_INFO *fli = *((FILE_LOAD_INFO **)(p - 0x18));
-        /*
-        if (fli) {
-            // log some info about this file loading operation
-            logu_("fli->cpk_filename: %s\n", fli->cpk_filename);
-            logu_("fli->cpk_filesize: %llx\n", fli->cpk_filesize);
-            logu_("fli->offset_in_cpk: %llx\n", fli->offset_in_cpk);
-            logu_("fli->filesize: %llx\n", fli->filesize);
-            logu_("fli->total_bytes_to_read: %x\n", fli->total_bytes_to_read);
-            logu_("fli->max_bytes_to_read: %x\n", fli->max_bytes_to_read);
-            logu_("fli->bytes_read_so_far: %x\n", fli->bytes_read_so_far);
-            logu_("fli->bytes_to_read: %x\n", fli->bytes_to_read);
-            logu_("fli->buffer_size: %llx\n", fli->buffer_size);
-            logu_("fli->buffer: %p\n", fli->buffer);
-            logu_("fli->buffer2: %p\n", fli->buffer2);
-        }
-        */
 
         filename = have_live_file(rs->filename);
         if (filename != NULL) {
-            log_(L"read_file:: livecpk file found: %s\n", filename->c_str());
+            DBG(3) log_(L"read_file:: livecpk file found: %s\n", filename->c_str());
             handle = CreateFileW(filename->c_str(),   // file to open
                                GENERIC_READ,          // open for reading
                                FILE_SHARE_READ,       // share for reading
@@ -613,8 +626,6 @@ BOOL sider_read_file(
             if (handle != INVALID_HANDLE_VALUE)
             {
                 DWORD sz = GetFileSize(handle, NULL);
-                //log_(L"livecpk file size: %x (decimal: %u) vs original size in cpk: %x (decimal: %u)\n",
-                //    sz, sz, rs->filesize, rs->filesize);
 
                 // replace file handle
                 orgHandle = hFile;
@@ -632,7 +643,7 @@ BOOL sider_read_file(
                     offset = offset + fli->bytes_read_so_far;
 
                     // trace file read info
-                    DBG2 {
+                    DBG(4) {
                         logu_("read_file:: fli->total_bytes_to_read: %x\n", fli->total_bytes_to_read);
                         logu_("read_file:: fli->max_bytes_to_read: %x\n", fli->max_bytes_to_read);
                         logu_("read_file:: fli->bytes_to_read: %x\n", fli->bytes_to_read);
@@ -644,7 +655,7 @@ BOOL sider_read_file(
                     }
                 }
 
-                log_(L"read_file:: livecpk file offset: %llx\n", offset);
+                DBG(3) log_(L"read_file:: livecpk file offset: %llx\n", offset);
             }
         }
     }
@@ -654,7 +665,7 @@ BOOL sider_read_file(
     //    hFile, lpBuffer, nNumberOfBytesToRead, *lpNumberOfBytesRead, lpOverlapped);
 
     if (handle != INVALID_HANDLE_VALUE) {
-        log_(L"read_file:: called ReadFile(%x, %p, %x, %x, %p)\n",
+        DBG(3) log_(L"read_file:: called ReadFile(%x, %p, %x, %x, %p)\n",
             hFile, lpBuffer, nNumberOfBytesToRead, *lpNumberOfBytesRead, lpOverlapped);
         CloseHandle(handle);
 
@@ -682,7 +693,7 @@ void sider_mem_copy(BYTE *dst, LONGLONG dst_len, BYTE *src, LONGLONG src_len, st
     memcpy_s(dst, dst_len, src, src_len);
 
     if (rs) {
-        DBG1 logu_("mem_copy:: rs->filesize: %llx, rs->offset: %llx, rs->filename: %s\n",
+        DBG(1) logu_("mem_copy:: rs->filesize: %llx, rs->offset: %llx, rs->filename: %s\n",
             rs->filesize, rs->offset.full, rs->filename);
 
         BYTE* p = (BYTE*)rs;
@@ -690,7 +701,7 @@ void sider_mem_copy(BYTE *dst, LONGLONG dst_len, BYTE *src, LONGLONG src_len, st
 
         filename = have_live_file(rs->filename);
         if (filename != NULL) {
-            log_(L"mem_copy:: livecpk file found: %s\n", filename->c_str());
+            DBG(3) log_(L"mem_copy:: livecpk file found: %s\n", filename->c_str());
             handle = CreateFileW(filename->c_str(),   // file to open
                                GENERIC_READ,          // open for reading
                                FILE_SHARE_READ,       // share for reading
@@ -702,8 +713,6 @@ void sider_mem_copy(BYTE *dst, LONGLONG dst_len, BYTE *src, LONGLONG src_len, st
             if (handle != INVALID_HANDLE_VALUE)
             {
                 DWORD sz = GetFileSize(handle, NULL);
-                //log_(L"livecpk file size: %x (decimal: %u) vs original size in cpk: %x (decimal: %u)\n",
-                //    sz, sz, rs->filesize, rs->filesize);
 
                 // set correct offset
                 LONG offsetHigh = rs->offset.parts.high;
@@ -717,7 +726,7 @@ void sider_mem_copy(BYTE *dst, LONGLONG dst_len, BYTE *src, LONGLONG src_len, st
                     offset = offset + fli->bytes_read_so_far;
 
                     // trace file read info
-                    DBG2 {
+                    DBG(4) {
                         logu_("mem_copy:: fli->total_bytes_to_read: %x\n", fli->total_bytes_to_read);
                         logu_("mem_copy:: fli->max_bytes_to_read: %x\n", fli->max_bytes_to_read);
                         logu_("mem_copy:: fli->bytes_to_read: %x\n", fli->bytes_to_read);
@@ -729,17 +738,48 @@ void sider_mem_copy(BYTE *dst, LONGLONG dst_len, BYTE *src, LONGLONG src_len, st
                     }
                 }
 
-                log_(L"mem_copy:: livecpk file offset: %llx\n", offset);
+                DBG(3) log_(L"mem_copy:: livecpk file offset: %llx\n", offset);
 
                 // read data from file to destination buffer
                 DWORD numberOfBytesRead = 0;
                 BOOL result = ReadFile(handle, dst, src_len, &numberOfBytesRead, NULL);
 
-                log_(L"mem_copy:: called ReadFile(%x, %p, %x, %x, %p)\n",
+                DBG(3) log_(L"mem_copy:: called ReadFile(%x, %p, %x, %x, %p)\n",
                     handle, dst, dst_len, &numberOfBytesRead, NULL);
                 CloseHandle(handle);
             }
         }
+    }
+}
+
+void sider_lookup_file(LONGLONG p1, LONGLONG p2, char *filename)
+{
+    // quick check if we already modified this path
+    char *p = filename + strlen(filename) + 1;
+    if (*(DWORD*)p == MAGIC) {
+        // already did this.
+        return;
+    }
+    //DBG(8) logu_("lookup_file:: looking for: %s\n", filename);
+
+    wstring *fn = have_live_file(filename);
+    if (fn) {
+        DBG(4) logu_("lookup_file:: found livecpk file for: %s\n", filename);
+
+        // trick: pick a filename that we know exists
+        // put our filename after it, separated by MAGIC marker
+        char temp[0x100];
+        strncpy(temp, filename, 0x100);
+        strcpy(filename, KNOWN_FILENAME);
+        char *tail = filename + strlen(filename) + 1;
+        *(DWORD*)tail = MAGIC;
+        tail[4] = '\0';
+        strcpy(tail+5,temp);
+    }
+    else {
+        // not found. But still mark it with magic
+        // so that we do not search again
+        *(DWORD*)p = MAGIC;
     }
 }
 
@@ -1112,7 +1152,8 @@ bool all_found(config_t *cfg) {
         cfg->_hp_at_read_file > 0 &&
         cfg->_hp_at_get_size > 0 &&
         cfg->_hp_at_extend_cpk > 0 &&
-        cfg->_hp_at_mem_copy > 0
+        cfg->_hp_at_mem_copy > 0 &&
+        cfg->_hp_at_lookup_file > 0
     );
 }
 
@@ -1122,28 +1163,32 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
     log_(L"Searching code section at: %p\n", base);
     bool result(false);
 
-#define NUM_PATTERNS 4
+#define NUM_PATTERNS 5
     if (_config->_livecpk_enabled) {
         BYTE *frag[NUM_PATTERNS];
         frag[0] = lcpk_pattern_at_read_file;
         frag[1] = lcpk_pattern_at_get_size;
         frag[2] = lcpk_pattern_at_write_cpk_filesize;
         frag[3] = lcpk_pattern_at_mem_copy;
+        frag[4] = lcpk_pattern_at_lookup_file;
         size_t frag_len[NUM_PATTERNS];
         frag_len[0] = sizeof(lcpk_pattern_at_read_file)-1;
         frag_len[1] = sizeof(lcpk_pattern_at_get_size)-1;
         frag_len[2] = sizeof(lcpk_pattern_at_write_cpk_filesize)-1;
         frag_len[3] = sizeof(lcpk_pattern_at_mem_copy)-1;
+        frag_len[4] = sizeof(lcpk_pattern_at_lookup_file)-1;
         int offs[NUM_PATTERNS];
         offs[0] = lcpk_offs_at_read_file;
         offs[1] = lcpk_offs_at_get_size;
         offs[2] = lcpk_offs_at_write_cpk_filesize;
         offs[3] = lcpk_offs_at_mem_copy;
+        offs[4] = lcpk_offs_at_lookup_file;
         BYTE **addrs[NUM_PATTERNS];
         addrs[0] = &_config->_hp_at_read_file;
         addrs[1] = &_config->_hp_at_get_size;
         addrs[2] = &_config->_hp_at_extend_cpk;
         addrs[3] = &_config->_hp_at_mem_copy;
+        addrs[4] = &_config->_hp_at_lookup_file;
 
         for (int j=0; j<NUM_PATTERNS; j++) {
             BYTE *p = find_code_frag(base, h->Misc.VirtualSize,
@@ -1162,11 +1207,13 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
             log_(L"sider_get_size_hk: %p\n", sider_get_size_hk);
             log_(L"sider_extend_cpk_hk: %p\n", sider_extend_cpk_hk);
             log_(L"sider_mem_copy_hk: %p\n", sider_mem_copy_hk);
+            log_(L"sider_lookup_file: %p\n", sider_lookup_file_hk);
 
             hook_indirect_call(_config->_hp_at_read_file, (BYTE*)sider_read_file_hk);
             hook_call(_config->_hp_at_get_size, (BYTE*)sider_get_size_hk, 0);
             hook_call(_config->_hp_at_extend_cpk, (BYTE*)sider_extend_cpk_hk, 1);
             hook_call(_config->_hp_at_mem_copy, (BYTE*)sider_mem_copy_hk, 0);
+            hook_call(_config->_hp_at_lookup_file, (BYTE*)sider_lookup_file_hk, 3);
         }
     }
 

@@ -37,4 +37,10 @@ static BYTE lcpk_pattern_at_mem_copy[13] =
     "\x4d\x03\xc2";
 static int lcpk_offs_at_mem_copy = 9;
 
+static BYTE lcpk_pattern_at_lookup_file[16] =
+    "\x48\x8d\x8f\x10\x01\x00\x00"
+    "\x4c\x8b\xc6"
+    "\x48\x8d\x54\x24\x20";
+static int lcpk_offs_at_lookup_file = 0;
+
 #endif
