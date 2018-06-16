@@ -197,7 +197,6 @@ public:
     list<wstring> _lua_extra_globals;
     int _dll_mapping_option;
     wstring _section_name;
-    list<wstring> _code_sections;
     list<wstring> _cpk_roots;
     list<wstring> _exe_names;
     list<wstring> _module_names;
@@ -239,9 +238,6 @@ public:
 
             if (wcscmp(L"exe.name", key.c_str())==0) {
                 _exe_names.push_back(value);
-            }
-            else if (wcscmp(L"code.section", key.c_str())==0) {
-                _code_sections.push_back(value);
             }
             else if (wcscmp(L"lua.module", key.c_str())==0) {
                 _module_names.push_back(value);
@@ -1121,28 +1117,21 @@ DWORD install_func(LPVOID thread_param) {
         log_(L"Using cpk.root: %s\n", it->c_str());
     }
 
-    if (_config->_code_sections.size() == 0) {
-        log_(L"No code sections specified in config: nothing to do then.");
-        return 0;
-    }
-
-    list<wstring>::iterator it = _config->_code_sections.begin();
-    for (; it != _config->_code_sections.end(); it++) {
-        char *section_name = (char*)Utf8::unicodeToUtf8(it->c_str());
-        IMAGE_SECTION_HEADER *h = GetSectionHeader(section_name);
-        Utf8::free(section_name);
-
+    for (int i=0;; i++) {
+        IMAGE_SECTION_HEADER *h = GetSectionHeaderByOrdinal(i);
         if (!h) {
-            log_(L"Unable to find code section: %s. Skipping\n", it->c_str());
-            continue;
+            break;
         }
-        logu_("h->Misc.VirtualSize: %p\n", h->Misc.VirtualSize);
-        if (h->Misc.VirtualSize < 0x10000) {
-            log_(L"Section too small: %s (%p). Skipping\n", it->c_str(), h->Misc.VirtualSize);
+
+        char name[16];
+        memset(name, 0, sizeof(name));
+        memcpy(name, h->Name, 8);
+        logu_("Examining code section: %s\n", name);
+        if (h->Misc.VirtualSize < 0x10) {
+            log_(L"Section too small: %s (%p). Skipping\n", name, h->Misc.VirtualSize);
             continue;
         }
 
-        log_(L"Examining code section: %s\n", it->c_str());
         if (_install_func(h)) {
             init_lua_support();
             break;
@@ -1165,7 +1154,8 @@ bool all_found(config_t *cfg) {
 bool _install_func(IMAGE_SECTION_HEADER *h) {
     BYTE* base = (BYTE*)GetModuleHandle(NULL);
     base += h->VirtualAddress;
-    log_(L"Searching code section at: %p\n", base);
+    log_(L"Searching range: %p : %p (size: %p)\n",
+        base, base + h->Misc.VirtualSize, h->Misc.VirtualSize);
     bool result(false);
 
 #define NUM_PATTERNS 5
@@ -1201,6 +1191,7 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
             if (!p) {
                 continue;
             }
+            log_(L"Found pattern %i of %i\n", j+1, NUM_PATTERNS);
             *(addrs[j]) = p + offs[j];
         }
 

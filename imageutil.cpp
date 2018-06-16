@@ -21,6 +21,24 @@ IMAGE_SECTION_HEADER* GetSectionHeader(char* name)
 	return NULL;
 }
 
+// Returns a pointer to a specified section.
+// (returns NULL if section was such name was not found)
+IMAGE_SECTION_HEADER* GetSectionHeaderByOrdinal(int i)
+{
+	HANDLE hMod = GetModuleHandle(NULL);
+	IMAGE_DOS_HEADER* p = (IMAGE_DOS_HEADER*)hMod;
+	IMAGE_NT_HEADERS* nth = (IMAGE_NT_HEADERS*)((BYTE*)hMod + p->e_lfanew);
+	IMAGE_FILE_HEADER* fh = &(nth->FileHeader);
+	IMAGE_SECTION_HEADER* sec =
+		(IMAGE_SECTION_HEADER*)((BYTE*)fh + sizeof(IMAGE_FILE_HEADER) + fh->SizeOfOptionalHeader);
+
+	WORD num = fh->NumberOfSections;
+    if (i>=0 && i<num) {
+        return sec + i;
+    }
+	return NULL;
+}
+
 // Initializes the output "ppDataDirectory" parameter with a pointer to 
 // IMAGE_DATA_DIRECTORY structure. Returns the number of directory
 // entries.(0 - if module has no optional header)

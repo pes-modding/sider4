@@ -6,6 +6,7 @@
 
 // generic utility methods
 IMAGE_SECTION_HEADER* GetSectionHeader(char* name);
+IMAGE_SECTION_HEADER* GetSectionHeaderByOrdinal(int i);
 DWORD GetImageDataDirectory(IMAGE_DATA_DIRECTORY** ppDataDirectory);
 IMAGE_IMPORT_DESCRIPTOR* GetImageImportDescriptors(char* moduleName);
 IMAGE_IMPORT_DESCRIPTOR* GetModuleImportDescriptors(HMODULE hMod);

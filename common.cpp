@@ -84,7 +84,7 @@ BYTE* find_code_frag(BYTE *base, LONGLONG max_offset, BYTE *frag, size_t frag_le
 {
     BYTE *p = base;
     BYTE *max_p = base + max_offset;
-    logu_("searching range: %p : %p for %lu bytes\n", p, max_p, frag_len);
+    //logu_("searching range: %p : %p for %lu bytes\n", p, max_p, frag_len);
     while (p < max_p && memcmp(p, frag, frag_len)!=0) {
         p += 1;
     }
