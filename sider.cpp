@@ -148,9 +148,11 @@ struct module_t {
     lua_State* L;
     /*
     int evt_trophy_check;
+    */
     int evt_lcpk_make_key;
     int evt_lcpk_get_filepath;
     int evt_lcpk_rewrite;
+    /*
     int evt_set_home_team;
     int evt_set_away_team;
     int evt_set_tid;
@@ -539,6 +541,154 @@ bool file_exists(wstring *fullpath, LONGLONG *size)
     return false;
 }
 
+bool module_rewrite(module_t *m, const char *file_name)
+{
+    bool res(false);
+    EnterCriticalSection(&_cs);
+    lua_pushvalue(m->L, m->evt_lcpk_rewrite);
+    lua_xmove(m->L, L, 1);
+    // push params
+    lua_pushvalue(L, 1); // ctx
+    lua_pushstring(L, file_name);
+    if (lua_pcall(L, 2, 1, 0) != LUA_OK) {
+        const char *err = luaL_checkstring(L, -1);
+        logu_("[%d] lua ERROR: %s\n", GetCurrentThreadId(), err);
+    }
+    else if (lua_isstring(L, -1)) {
+        const char *s = luaL_checkstring(L, -1);
+        strcpy((char*)file_name, s);
+        res = true;
+    }
+    lua_pop(L, 1);
+    LeaveCriticalSection(&_cs);
+    return res;
+}
+
+void module_make_key(module_t *m, const char *file_name, char *key)
+{
+    if (m->evt_lcpk_make_key != 0) {
+        EnterCriticalSection(&_cs);
+        lua_pushvalue(m->L, m->evt_lcpk_make_key);
+        lua_xmove(m->L, L, 1);
+        // set default of empty key:
+        // in case nil is returned, or an error occurs
+        key[0] = '\0';
+        // push params
+        lua_pushvalue(L, 1); // ctx
+        lua_pushstring(L, file_name);
+        if (lua_pcall(L, 2, 1, 0) != LUA_OK) {
+            const char *err = luaL_checkstring(L, -1);
+            logu_("[%d] lua ERROR: %s\n", GetCurrentThreadId(), err);
+        }
+        else if (lua_isstring(L, -1)) {
+            const char *s = luaL_checkstring(L, -1);
+            strcpy(key, s);
+        }
+        lua_pop(L, 1);
+        LeaveCriticalSection(&_cs);
+    }
+    else {
+        // assume filename is a key
+        strcpy(key, file_name);
+    }
+}
+
+wstring *module_get_filepath(module_t *m, const char *file_name, char *key)
+{
+    wstring *res = NULL;
+    if (m->evt_lcpk_get_filepath != 0) {
+        EnterCriticalSection(&_cs);
+        lua_pushvalue(m->L, m->evt_lcpk_get_filepath);
+        lua_xmove(m->L, L, 1);
+        // push params
+        lua_pushvalue(L, 1); // ctx
+        lua_pushstring(L, file_name);
+        lua_pushstring(L, (key[0]=='\0') ? NULL : key);
+        if (lua_pcall(L, 3, 1, 0) != LUA_OK) {
+            const char *err = luaL_checkstring(L, -1);
+            logu_("[%d] lua ERROR: %s\n",
+                GetCurrentThreadId(), err);
+        }
+        else if (lua_isstring(L, -1)) {
+            const char *s = luaL_checkstring(L, -1);
+            wchar_t *ws = Utf8::utf8ToUnicode((BYTE*)s);
+            res = new wstring(ws);
+            Utf8::free(ws);
+        }
+        lua_pop(L, 1);
+        LeaveCriticalSection(&_cs);
+
+        // verify that file exists
+        if (res && !file_exists(res, NULL)) {
+            delete res;
+            res = NULL;
+        }
+    }
+    return res;
+}
+
+bool do_rewrite(char *file_name)
+{
+    list<module_t*>::iterator i;
+    for (i = _modules.begin(); i != _modules.end(); i++) {
+        module_t *m = *i;
+        if (m->evt_lcpk_rewrite != 0) {
+            if (module_rewrite(m, file_name)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+wstring* have_content(char *file_name)
+{
+    char key[512];
+    list<module_t*>::iterator i;
+    //logu_("have_content: %p --> %s\n", (DWORD)file_name, file_name);
+    for (i = _modules.begin(); i != _modules.end(); i++) {
+        module_t *m = *i;
+        if (!m->evt_lcpk_make_key && !m->evt_lcpk_get_filepath) {
+            // neither of callbacks is defined --> nothing to do
+            continue;
+        }
+
+        module_make_key(m, file_name, key);
+               
+        if (_config->_lookup_cache_enabled) {
+            unordered_map<string,wstring*>::iterator j;
+            j = m->cache->find(key);
+            if (j != m->cache->end()) {
+                if (j->second != NULL) {
+                    return j->second;
+                }
+                // this module does not have the file:
+                // move on to next module
+                continue;
+            }
+            else {
+                wstring *res = module_get_filepath(m, file_name, key);
+
+                // cache the lookup result
+                m->cache->insert(pair<string,wstring*>(key, res));
+                if (res) {
+                    // we have a file: stop and return
+                    return res;
+                }
+            }
+        }
+        else {
+            // no cache: SLOW! ONLY use for troubleshooting
+            wstring *res = module_get_filepath(m, file_name, key);
+            if (res) {
+                // we have a file: stop and return
+                return res;
+            }
+        }
+    }
+    return NULL;
+}
+
 __declspec(dllexport) bool start_minimized()
 {
     return _config && _config->_start_minimized;
@@ -562,7 +712,10 @@ void sider_get_size(char *filename, struct FILE_INFO *fi)
     }
     DBG(4) logu_("get_size:: tailname: %s\n", fname);
 
-    wstring *fn = have_live_file(fname);
+    wstring *fn;
+    if (_config->_lua_enabled) do_rewrite(fname);
+    fn = (_config->_lua_enabled) ? have_content(fname) : NULL;
+    fn = (fn) ? fn : have_live_file(fname);
     if (fn != NULL) {
         DBG(4) log_(L"get_size:: livecpk file found: %s\n", fn->c_str());
         HANDLE handle = CreateFileW(fn->c_str(),  // file to open
@@ -604,16 +757,19 @@ BOOL sider_read_file(
 
     //log_(L"rs (R12) = %p\n", rs);
     if (rs) {
+        if (_config->_lua_enabled) do_rewrite(rs->filename);
         DBG(1) logu_("read_file:: rs->filesize: %llx, rs->offset: %llx, rs->filename: %s\n",
             rs->filesize, rs->offset.full, rs->filename);
 
         BYTE* p = (BYTE*)rs;
         FILE_LOAD_INFO *fli = *((FILE_LOAD_INFO **)(p - 0x18));
 
-        filename = have_live_file(rs->filename);
-        if (filename != NULL) {
-            DBG(3) log_(L"read_file:: livecpk file found: %s\n", filename->c_str());
-            handle = CreateFileW(filename->c_str(),   // file to open
+        wstring *fn;
+        fn = (_config->_lua_enabled) ? have_content(rs->filename) : NULL;
+        fn = (fn) ? fn : have_live_file(rs->filename);
+        if (fn != NULL) {
+            DBG(3) log_(L"read_file:: livecpk file found: %s\n", fn->c_str());
+            handle = CreateFileW(fn->c_str(),         // file to open
                                GENERIC_READ,          // open for reading
                                FILE_SHARE_READ,       // share for reading
                                NULL,                  // default security
@@ -691,16 +847,19 @@ void sider_mem_copy(BYTE *dst, LONGLONG dst_len, BYTE *src, LONGLONG src_len, st
     memcpy_s(dst, dst_len, src, src_len);
 
     if (rs) {
+        if (_config->_lua_enabled) do_rewrite(rs->filename);
         DBG(1) logu_("mem_copy:: rs->filesize: %llx, rs->offset: %llx, rs->filename: %s\n",
             rs->filesize, rs->offset.full, rs->filename);
 
         BYTE* p = (BYTE*)rs;
         FILE_LOAD_INFO *fli = *((FILE_LOAD_INFO **)(p - 0x18));
 
-        filename = have_live_file(rs->filename);
-        if (filename != NULL) {
-            DBG(3) log_(L"mem_copy:: livecpk file found: %s\n", filename->c_str());
-            handle = CreateFileW(filename->c_str(),   // file to open
+        wstring *fn;
+        fn = (_config->_lua_enabled) ? have_content(rs->filename) : NULL;
+        fn = (fn) ? fn : have_live_file(rs->filename);
+        if (fn != NULL) {
+            DBG(3) log_(L"mem_copy:: livecpk file found: %s\n", fn->c_str());
+            handle = CreateFileW(fn->c_str(),         // file to open
                                GENERIC_READ,          // open for reading
                                FILE_SHARE_READ,       // share for reading
                                NULL,                  // default security
@@ -761,7 +920,15 @@ void sider_lookup_file(LONGLONG p1, LONGLONG p2, char *filename)
     }
     //DBG(8) logu_("lookup_file:: looking for: %s\n", filename);
 
-    wstring *fn = have_live_file(filename);
+    wstring *fn;
+    if (_config->_lua_enabled) {
+        if (do_rewrite(filename)) {
+            len = strlen(filename);
+            p = filename + len + 1;
+        }
+    }
+    fn = (_config->_lua_enabled) ? have_content(filename) : NULL;
+    fn = (fn) ? fn : have_live_file(filename);
     if (fn) {
         DBG(4) logu_("lookup_file:: found livecpk file for: %s\n", filename);
 
@@ -828,6 +995,152 @@ void hook_call(BYTE *loc, BYTE *p, size_t nops) {
     }
 }
 
+static int sider_context_register(lua_State *L)
+{
+    const char *event_key = luaL_checkstring(L, 1);
+    if (!lua_isfunction(L, 2)) {
+        lua_pushstring(L, "second argument must be a function");
+        return lua_error(L);
+    }
+    /*
+    if (strcmp(event_key, "tournament_check_for_trophy")==0) {
+        lua_pushvalue(L, -1);
+        lua_xmove(L, _curr_m->L, 1);
+        _curr_m->evt_trophy_check = lua_gettop(_curr_m->L);
+        logu_("Registered for \"%s\" event\n", event_key);
+    }
+    */
+    else if (strcmp(event_key, "livecpk_make_key")==0) {
+        lua_pushvalue(L, -1);
+        lua_xmove(L, _curr_m->L, 1);
+        _curr_m->evt_lcpk_make_key = lua_gettop(_curr_m->L);
+        logu_("Registered for \"%s\" event\n", event_key);
+    }
+    else if (strcmp(event_key, "livecpk_get_filepath")==0) {
+        lua_pushvalue(L, -1);
+        lua_xmove(L, _curr_m->L, 1);
+        _curr_m->evt_lcpk_get_filepath = lua_gettop(_curr_m->L);
+        logu_("Registered for \"%s\" event\n", event_key);
+    }
+    else if (strcmp(event_key, "livecpk_rewrite")==0) {
+        lua_pushvalue(L, -1);
+        lua_xmove(L, _curr_m->L, 1);
+        _curr_m->evt_lcpk_rewrite = lua_gettop(_curr_m->L);
+        logu_("Registered for \"%s\" event\n", event_key);
+    }
+    /*
+    else if (strcmp(event_key, "set_home_team")==0) {
+        lua_pushvalue(L, -1);
+        lua_xmove(L, _curr_m->L, 1);
+        _curr_m->evt_set_home_team = lua_gettop(_curr_m->L);
+        logu_("Registered for \"%s\" event\n", event_key);
+    }
+    else if (strcmp(event_key, "set_away_team")==0) {
+        lua_pushvalue(L, -1);
+        lua_xmove(L, _curr_m->L, 1);
+        _curr_m->evt_set_away_team = lua_gettop(_curr_m->L);
+        logu_("Registered for \"%s\" event\n", event_key);
+    }
+    else if (strcmp(event_key, "set_tournament_id")==0) {
+        lua_pushvalue(L, -1);
+        lua_xmove(L, _curr_m->L, 1);
+        _curr_m->evt_set_tid = lua_gettop(_curr_m->L);
+        logu_("Registered for \"%s\" event\n", event_key);
+    }
+    else if (strcmp(event_key, "set_match_time")==0) {
+        lua_pushvalue(L, -1);
+        lua_xmove(L, _curr_m->L, 1);
+        _curr_m->evt_set_match_time = lua_gettop(_curr_m->L);
+        logu_("Registered for \"%s\" event\n", event_key);
+    }
+    else if (strcmp(event_key, "set_stadium_choice")==0) {
+        lua_pushvalue(L, -1);
+        lua_xmove(L, _curr_m->L, 1);
+        _curr_m->evt_set_stadium_choice = lua_gettop(_curr_m->L);
+        logu_("Registered for \"%s\" event\n", event_key);
+    }
+    else if (strcmp(event_key, "set_stadium")==0) {
+        lua_pushvalue(L, -1);
+        lua_xmove(L, _curr_m->L, 1);
+        _curr_m->evt_set_stadium = lua_gettop(_curr_m->L);
+        logu_("Registered for \"%s\" event\n", event_key);
+    }
+    else if (strcmp(event_key, "set_conditions")==0) {
+        lua_pushvalue(L, -1);
+        lua_xmove(L, _curr_m->L, 1);
+        _curr_m->evt_set_conditions = lua_gettop(_curr_m->L);
+        logu_("Registered for \"%s\" event\n", event_key);
+    }
+    else if (strcmp(event_key, "after_set_conditions")==0) {
+        lua_pushvalue(L, -1);
+        lua_xmove(L, _curr_m->L, 1);
+        _curr_m->evt_after_set_conditions = lua_gettop(_curr_m->L);
+        logu_("Registered for \"%s\" event\n", event_key);
+    }
+    else if (strcmp(event_key, "set_stadium_for_replay")==0) {
+        lua_pushvalue(L, -1);
+        lua_xmove(L, _curr_m->L, 1);
+        _curr_m->evt_set_stadium_for_replay = lua_gettop(_curr_m->L);
+        logu_("Registered for \"%s\" event\n", event_key);
+    }
+    else if (strcmp(event_key, "set_conditions_for_replay")==0) {
+        lua_pushvalue(L, -1);
+        lua_xmove(L, _curr_m->L, 1);
+        _curr_m->evt_set_conditions_for_replay = lua_gettop(_curr_m->L);
+        logu_("Registered for \"%s\" event\n", event_key);
+    }
+    else if (strcmp(event_key, "after_set_conditions_for_replay")==0) {
+        lua_pushvalue(L, -1);
+        lua_xmove(L, _curr_m->L, 1);
+        _curr_m->evt_after_set_conditions_for_replay = lua_gettop(_curr_m->L);
+        logu_("Registered for \"%s\" event\n", event_key);
+    }
+    else if (strcmp(event_key, "get_ball_name")==0) {
+        lua_pushvalue(L, -1);
+        lua_xmove(L, _curr_m->L, 1);
+        _curr_m->evt_get_ball_name = lua_gettop(_curr_m->L);
+        logu_("Registered for \"%s\" event\n", event_key);
+    }
+    else if (strcmp(event_key, "get_stadium_name")==0) {
+        lua_pushvalue(L, -1);
+        lua_xmove(L, _curr_m->L, 1);
+        _curr_m->evt_get_stadium_name = lua_gettop(_curr_m->L);
+        logu_("Registered for \"%s\" event\n", event_key);
+    }
+    else if (strcmp(event_key, "enter_edit_mode")==0) {
+        lua_pushvalue(L, -1);
+        lua_xmove(L, _curr_m->L, 1);
+        _curr_m->evt_enter_edit_mode = lua_gettop(_curr_m->L);
+        logu_("Registered for \"%s\" event\n", event_key);
+    }
+    else if (strcmp(event_key, "exit_edit_mode")==0) {
+        lua_pushvalue(L, -1);
+        lua_xmove(L, _curr_m->L, 1);
+        _curr_m->evt_exit_edit_mode = lua_gettop(_curr_m->L);
+        logu_("Registered for \"%s\" event\n", event_key);
+    }
+    else if (strcmp(event_key, "enter_replay_gallery")==0) {
+        lua_pushvalue(L, -1);
+        lua_xmove(L, _curr_m->L, 1);
+        _curr_m->evt_enter_replay_gallery = lua_gettop(_curr_m->L);
+        logu_("Registered for \"%s\" event\n", event_key);
+    }
+    else if (strcmp(event_key, "exit_replay_gallery")==0) {
+        lua_pushvalue(L, -1);
+        lua_xmove(L, _curr_m->L, 1);
+        _curr_m->evt_exit_replay_gallery = lua_gettop(_curr_m->L);
+        logu_("Registered for \"%s\" event\n", event_key);
+    }
+    */
+    else {
+        logu_("WARN: trying to register for unknown event: \"%s\"\n",
+            event_key);
+    }
+    lua_pop(L, 2);
+    return 0;
+}
+
+
 static void push_context_table(lua_State *L)
 {
     lua_newtable(L);
@@ -837,8 +1150,8 @@ static void push_context_table(lua_State *L)
     Utf8::free(sdir);
     lua_setfield(L, -2, "sider_dir");
 
-    //lua_pushcfunction(L, sider_context_register);
-    //lua_setfield(L, -2, "register");
+    lua_pushcfunction(L, sider_context_register);
+    lua_setfield(L, -2, "register");
 }
 
 static void push_env_table(lua_State *L, const wchar_t *script_name)
