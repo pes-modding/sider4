@@ -20,8 +20,8 @@ LFLAGS=/NOLOGO
 LIBS=user32.lib gdi32.lib comctl32.lib version.lib
 LIBSDLL=pngdib.obj libpng.a zdll.lib $(LIBS)
 
-LUAINC=/I soft\LuaJIT-2.0.4\src
-LUALIBPATH=soft\LuaJIT-2.0.4\src
+LUAINC=/I soft\LuaJIT-2.0.5\src
+LUALIBPATH=soft\LuaJIT-2.0.5\src
 LUALIB=lua51.lib
 LUADLL=lua51.dll
 
