@@ -61,11 +61,11 @@ sider_mem_copy_hk endp
 
 sider_lookup_file_hk proc
 
-        push    rax
-        sub     rsp,28h
+        sub     rsp,38h
+        mov     [rsp+30h],rax
         call    sider_lookup_file
-        add     rsp,28h
-        pop     rax
+        mov     rax,[rsp+30h]
+        add     rsp,38h
         lea     rcx,qword ptr [rdi+110h]
         mov     r8,rsi
         lea     rdx,qword ptr [rsp+28h]
