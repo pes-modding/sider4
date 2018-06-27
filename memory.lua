@@ -50,12 +50,17 @@ function m.write(addr, s)
     ffi.copy(p, s, len)
 end
 
-local format_sizes = { l = 8, i = 4, s = 2, f = 4, d = 8, ul = 8, ui = 4, us = 2 }
+local format_sizes = {
+    i64 = 8, u64 = 8,
+    i32 = 4, u32 = 4, i = 4, ui = 4,
+    i16 = 2, u16 = 2, s = 2, us = 2,
+    f = 4, d = 8,
+}
 
 function m.pack(fmt, value)
     local len = format_sizes[fmt]
     if len == nil then
-        return error(string.format('Unsupported pack/unpack format: %s', fmt))
+        return error(string.format('Unsupported pack format: %s', fmt))
     end
     local arr
     if fmt == 'f' then
@@ -69,24 +74,24 @@ function m.pack(fmt, value)
 end
 
 function m.unpack(fmt, s)
-    if fmt == 'l' then
+    if fmt == 'i64' then
         return ffi.cast('int64_t*', s)[0]
-    elseif fmt == 'ul' then
+    elseif fmt == 'u64' then
         return ffi.cast('uint64_t*', s)[0]
-    elseif fmt == 'i' then
+    elseif fmt == 'i32' or fmt = 'i' then
         return tonumber(ffi.cast('int32_t*', s)[0])
-    elseif fmt == 'ui' then
+    elseif fmt == 'u32' or fmt = 'ui' then
         return tonumber(ffi.cast('uint32_t*', s)[0])
-    elseif fmt == 's' then
+    elseif fmt == 'i16' or fmt == 's' then
         return tonumber(ffi.cast('int16_t*', s)[0])
-    elseif fmt == 'us' then
+    elseif fmt == 'u16' or fmt == 'us' then
         return tonumber(ffi.cast('uint16_t*', s)[0])
     elseif fmt == 'f' then
         return tonumber(ffi.cast('float*', s)[0])
     elseif fmt == 'd' then
         return tonumber(ffi.cast('double*', s)[0])
     end
-    return error(string.format('Unsupported pack/unpack format: %s', fmt))
+    return error(string.format('Unsupported unpack format: %s', fmt))
 end
 
 function m.hex(s)
