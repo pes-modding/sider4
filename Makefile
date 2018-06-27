@@ -24,6 +24,7 @@ LUAINC=/I soft\LuaJIT-2.0.5\src
 LUALIBPATH=soft\LuaJIT-2.0.5\src
 LUALIB=lua51.lib
 LUADLL=lua51.dll
+LUAJIT=luajit.exe
 
 all: sider.exe sider.dll
 
@@ -35,6 +36,11 @@ sider_main.res: sider_main.rc sider.ico
 common.obj: common.cpp common.h
 imageutil.obj: imageutil.cpp imageutil.h
 version.obj: version.cpp
+memlib.obj: memlib.h memlib_lua.h memlib.cpp
+memlib_lua.h: memory.lua makememlibhdr.exe
+	makememlibhdr.exe
+makememlibhdr.exe: makememlibhdr.c
+	$(CC) makememlibhdr.c
 
 $(LUALIBPATH)\$(LUALIB):
 	cd $(LUALIBPATH) && msvcbuild.bat
@@ -43,20 +49,21 @@ util.obj: util.asm
     ml64 /c util.asm
 
 sider.obj: sider.cpp sider.h patterns.h common.h imageutil.h
-sider.dll: sider.obj util.obj imageutil.obj version.obj common.obj sider.res $(LUALIBPATH)\$(LUALIB)
-	$(LINK) $(LFLAGS) /out:sider.dll /DLL sider.obj util.obj imageutil.obj version.obj common.obj sider.res /LIBPATH:$(LUALIBPATH) $(LIBS) $(LUALIB) /LIBPATH:"$(LIB)"
+sider.dll: sider.obj util.obj imageutil.obj version.obj common.obj memlib.obj sider.res $(LUALIBPATH)\$(LUALIB)
+	$(LINK) $(LFLAGS) /out:sider.dll /DLL sider.obj util.obj imageutil.obj version.obj common.obj memlib.obj sider.res /LIBPATH:$(LUALIBPATH) $(LIBS) $(LUALIB) /LIBPATH:"$(LIB)"
 
 sider.exe: main.obj sider.dll sider_main.res $(LUADLL)
 	$(LINK) $(LFLAGS) /out:sider.exe main.obj sider_main.res $(LIBS) sider.lib /LIBPATH:"$(LIB)"
 
 $(LUADLL): $(LUALIBPATH)\$(LUALIB)
 	copy $(LUALIBPATH)\$(LUADLL) .
+	copy $(LUALIBPATH)\$(LUAJIT) .
 
 .cpp.obj:
 	$(CC) $(CFLAGS) -c $(INC) $(LUAINC) $<
 
 clean:
-	del *.obj *.dll *.exp *.res *.lib *.exe *~
+	del *.obj *.dll *.exp *.res *.lib *.exe *~ memlib_lua.h
 
 clean-all: clean
     cd $(LUALIBPATH) && del /Q lua51.exp lua51.lib lua51.dll luajit.exe

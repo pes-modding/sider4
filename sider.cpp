@@ -11,6 +11,7 @@
 #include "utf8.h"
 #include "common.h"
 #include "patterns.h"
+#include "memlib.h"
 
 #include "lua.hpp"
 #include "lauxlib.h"
@@ -1209,26 +1210,10 @@ static void push_env_table(lua_State *L, const wchar_t *script_name)
     Utf8::free(sname);
     lua_settable(L, -3);
 
-    /*
     // memory lib
-    lua_newtable(L);
-    lua_pushstring(L, "read");
-    lua_pushcclosure(L, memory_read, 0);
-    lua_settable(L, -3);
-    lua_pushstring(L, "write");
-    lua_pushcclosure(L, memory_write, 0);
-    lua_settable(L, -3);
-    lua_pushstring(L, "search");
-    lua_pushcclosure(L, memory_search, 0);
-    lua_settable(L, -3);
-    lua_pushstring(L, "pack");
-    lua_pushcclosure(L, memory_pack, 0);
-    lua_settable(L, -3);
-    lua_pushstring(L, "unpack");
-    lua_pushcclosure(L, memory_unpack, 0);
-    lua_settable(L, -3);
-    lua_setfield(L, -2, "memory");
+    init_memlib(L, "memory");
 
+    /*
     // gameplay lib
     init_gameplay_lib(L);
 
