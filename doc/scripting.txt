@@ -1,0 +1,305 @@
+Sider 4 Lua Module Programmers Guide
+====================================
+For sider.dll version: 4.0.2
+June 30, 2018
+
+
+
+1. Introduction
+~~~~~~~~~~~~~~~
+
+The main idea here is to provide a safe and flexible way to
+extend Sider functionality. It will (eventually) allow modders to
+alter many aspects of the game, load all sorts of extra content
+and even do gameplay tweaks.
+
+Instead of offering a C interface, where the programmers would need
+to write a DLL, i'm a taking a different approach here and trying to
+design a system, where extension modules are written in Lua. A module
+would typically initialize itself by registering for certain events,
+and then Sider will call the module functions, when those events
+occur later in the game.
+
+Lua is by now a well-established language of choice for scripting
+support in games, used all over the gaming industry. Most famous
+example is probably WarCraft.
+
+To boost the performance, Sider uses a just-in-time compiler for Lua
+called LuaJIT, written by Mike Pall. LuaJIT is a truly brilliant piece
+of software. It is 100% compatible with Lua 5.1, and it is super fast,
+often approaching and sometimes exceeding the speed of C code.
+( More information here: https://luajit.org )
+
+After reading this guide, the next step is to study the example (and
+non-example) modules, which are provided with this release of Sider.
+Find them in the "modules" directory.
+
+
+
+2. Module structure
+~~~~~~~~~~~~~~~~~~~
+
+If you are familiar with Lua and how modules are typically organized
+then this will make full sense to you. If are you new to Lua, i would
+strongly recommend reading "Programming in Lua" by Roberto Ierusalimschy.
+2nd edition covers Lua 5.1, which is the version of the language used
+by Sider. However, any other edition of the book will be just as helpful.
+
+In any case, the module organization is pretty simple:
+
+a) Your need to create a new table
+b) Provide an "init" function in that table, where you need to
+do any initialization logic for the module and register for the events
+your module is interested in.
+c) Return that table as the last statement
+
+Example module:
+
+-----------------------------
+local m = {}
+
+function m.init(ctx)
+    log("Hello, world!")
+end
+
+return m
+-----------------------------
+
+
+As you have already guessed, this module doesn't really do much. But it
+is a valid module, and can be loaded by Sider. For that you need to save
+it as <something>.lua file in the "modules" folder, inside sider. Let's
+assume that you named it: test.lua. Then, you must also enable it in
+sider.ini, like this:
+
+lua.module = "test.lua"
+
+**************************************************************************
+**************************************************************************
+VERY IMPORTANT: File encoding must be UTF-8. This is vital, if you are
+using non-latin characters in the strings in the module code - for example,
+in paths. If you only have latin-1 chars, then ANSI is ok too.
+**************************************************************************
+**************************************************************************
+
+If you now run the game, your module will get loaded by Sider, and then
+the "init" function will be called, so you should see a "Hello, world!"
+message in sider.log.
+
+If you made a mistake and your module has a syntax error, for example,
+or some other problem, then you should see an error message in sider.log,
+explaining where (on which line of the script) the problem occurred.
+
+Let's now see how you can make a more useful module. First step for that
+is to understand the context object (ctx).
+
+
+
+3. Context object
+~~~~~~~~~~~~~~~~~
+
+Context object is what Sider "knows" about the current state
+of the game. As more scripts/modules are created by the community
+the context object will probably also change, and include more and more
+information about the game.
+
+The context object also contains a register function, which has the
+following signature:
+
+ctx.register(event_name, handler_function)
+
+The event_name parameter is a string, which identifies a particular
+event. The handler_function should be a function in your Lua module,
+which will be called when the corresponding event happens. Parameters
+vary depending on the event - see the next section for details on all
+supported events and their handler signatures
+
+The idea of the context object is that in your handler functions, your
+code will make decisions on what to do, using the information in the
+context.
+
+
+
+4. Supported events
+~~~~~~~~~~~~~~~~~~~
+
+
+- Event name: "livecpk_make_key"
+Handler function: f(ctx, filename)
+Return value is expected to be a string or nil.
+
+This event occurs when the game needs to find out some information
+about the file, specified by relative filename. Maybe the game needs
+to create a buffer, or it needs to determine the filesize, or something
+else. Your handler function is expected to return a string key that
+will be used for caching of "livecpk_get_filepath". You can just
+return filename as the key, without any changes, or return nil -
+which will result in the same outcome. But sometimes, you need to make
+a different key, because the context has some additional information
+that is important.
+
+IMPORTANT: This event can fire a lot of times for a given filename,
+so try to avoid doing expensive computations in the handler function
+or logging anything, because it may affect your frame rate.
+
+
+- Event name: "livecpk_get_filepath"
+Handler function: f(ctx, filename, key)
+Return value is expected to be a string or nil.
+
+This event is related to "livecpk_make_key".
+It works like this: after the key is returned by livecpk_make_key
+handler, sider needs to know which actual file (absolute path) needs
+to be loaded for this key. So your handler function is expected to
+return a full absolute filename. Sider will cache this absolute filename
+using the key returned by livecpk_make_key, and the next time this file
+is needed, the livecpk_get_filepath event will NOT fire. (This is
+again done for performance reasons so that we don't unnecessarily seek
+the disk). See trophy.lua for an example usage of this event.
+
+
+- Event name: "livecpk_rewrite"
+Handler function: f(ctx, filename)
+Return value is expected to be a string or nil.
+
+Allows the filename to be rewritten to another. This is a very
+powerful, but also quite dangerous function, if you are not careful.
+If you rewrite the filename to something that does not exist in
+LiveCPK roots or in download/data CPKs, and none of your modules
+provide the content, then the game will be unable to load the file,
+which can lead to different behaviours, depending on type of file being
+loaded. If it's a DDS texture, then usually nothing bad happens -
+you just get a white texture. But if it is a model file - you will
+get an endless loop, where loading indicator will keep spinning
+forever, or the game can just crash. So, be careful,
+and don't rewrite blindly ;-)
+
+See "kitrewrite.lua" module for an example of rewrite usage: it is
+loading a 2nd player kit instead of a 1st goalkeeper kit, so your
+goalkeepers end up wearing 2nd kit of outfield players.
+
+
+NOTE: Some events can fire multiple times for the same "action".
+That is normal, it's just how the game works internally. Typically, you
+do not need to worry about it, but just be aware of this fact, when
+writing your handler functions.
+
+
+
+5. Logging
+~~~~~~~~~~
+
+Sider provides a function called "log". This can be used to print
+out any information you want into the sider.log file.
+You can use string.format to format your message in a way similar
+to what you would do with C printf:
+
+log(string.format("My value is: %0.5f", math.pi))
+
+In sider.log it will appear with a module name prefix, like as:
+
+[<modulename>.lua] My value is: 3.14159
+
+
+
+6. Module environment
+~~~~~~~~~~~~~~~~~~~~~
+
+Each module runs in its own environment. For detailed explanation
+on what an environment is - read about Lua environments in the Lua
+manual online, or in Programming in Lua book. What is important
+here is that a module has access to a limited set of globals:
+
+Standard Lua:
+    assert, ipairs, pairs, tostring, tonumber, table,
+    string, math, unpack, type, error, io, os, _VERSION, _G
+Sider:
+    log, memory, gameplay, gfx, _FILE
+
+You can also enable "ffi" and "bit" modules, which are LuaJIT
+extensions. By default, they are disabled. To enable, modify your
+sider.ini like this:
+
+luajit.ext.enabled = 1
+
+By the way, your module can "investigate" and find out what exactly
+is available for it to use - this is not hard, and is left as an
+exercise for the reader ;-) Or... you can cheat, and look at env.lua
+module.
+
+
+
+7. Memory library
+~~~~~~~~~~~~~~~~~
+
+The "memory" library provides a set of low-level functions that
+may prove useful if you're doing some advanced modding.
+
+For example, you need some game state info that is not available in
+sider's context object and isn't communicated through events either.
+Or you want to modify some bytes in memory, because you feel really
+adventurous.
+
+
+**********************************************************************
+**********************************************************************
+IMPORTANT WARNING: PLEASE USE THIS LIBRARY WITH CARE AND CAUTION,
+AND IF AND ONLY IF YOU KNOW WHAT YOU'RE DOING. REALLY.
+
+THESE ARE POWERFUL TOOLS, BUT THERE ARE ALSO DANGEROUS, BECAUSE
+WRITING INTO A WRONG PLACE IN MEMORY CAN HAVE DISASTROUS CONSEQUENCES.
+ALWAYS TRY TO HAVE A BACKUP COPY OF YOUR EDIT DATA AND SAVEGAME FILES.
+**********************************************************************
+**********************************************************************
+
+
+memory.read(addr, n)
+
+This function reads (n) bytes at memory address (addr).
+Return value: string of n bytes at given memory address
+
+
+memory.write(addr, str)
+
+This function writes the string of bytes (str) at the address (addr).
+Return value: nil
+
+
+memory.search(str, start_addr, end_addr)
+
+This function searches for the string of bytes (str), in the range
+of memory addresses between start_addr and end_addr.
+Return value: address, at which the string of bytes was found
+              or nil, if the string was not found.
+
+
+memory.pack(format, number)
+
+This function converts a Lua number into one of the supported binary
+formats (little endian). The "format" parameter is a string that should
+have one of the following values:
+"f"   : 32-bit float,
+"d"   : 64-bit double-precision float,
+"i64" : 64-bit signed integer,
+"u64" : 64-bit unsigned integer,
+"i32" : 32-bit signed integer,
+"u32" : 32-bit unsigned integer,
+"i16" : 16-bit signed integer,
+"u16" : 16-bit unsigned integer
+Return value: string of bytes, representing the number in the format
+specified by the "format" parameter
+
+
+memory.unpack(format, str)
+
+This function converts a string of bytes (str) into a Lua number, using
+the format parameter to interpret the binary spec. The same values are
+supported for "format" param as in memory.pack function.
+Return value: a Lua number, converted from binary representation
+
+These last two functions (memory.pack/memory.unpack) are useful, when
+used together with memory.read and memory.write, when you need to read
+and modify values in RAM and you know what binary formats are used for
+those values. See modules/memtest.lua - as the example module that
+demonstrates the usage.
+
