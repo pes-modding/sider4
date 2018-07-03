@@ -78,9 +78,9 @@ function m.unpack(fmt, s)
         return ffi.cast('int64_t*', s)[0]
     elseif fmt == 'u64' then
         return ffi.cast('uint64_t*', s)[0]
-    elseif fmt == 'i32' or fmt = 'i' then
+    elseif fmt == 'i32' or fmt == 'i' then
         return tonumber(ffi.cast('int32_t*', s)[0])
-    elseif fmt == 'u32' or fmt = 'ui' then
+    elseif fmt == 'u32' or fmt == 'ui' then
         return tonumber(ffi.cast('uint32_t*', s)[0])
     elseif fmt == 'i16' or fmt == 's' then
         return tonumber(ffi.cast('int16_t*', s)[0])
