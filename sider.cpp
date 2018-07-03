@@ -99,6 +99,39 @@ struct FILE_INFO {
     LONGLONG offset_in_cpk;
 };
 
+struct STAD_STRUCT {
+    DWORD stadium;
+    DWORD timeofday;
+    DWORD weather;
+    DWORD season;
+};
+
+struct MATCH_INFO_STRUCT {
+    WORD match_id;
+    WORD tournament_id_encoded;
+    BYTE match_leg;
+    BYTE unknown0[3];
+    BYTE match_info;
+    BYTE unknown1[3];
+    DWORD unknown2[2];
+    BYTE match_time;
+    BYTE unknown3[3];
+    DWORD unknown4[4];
+    BYTE db0x03;
+    BYTE db0x17;
+    BYTE stadium_choice;
+    BYTE unknown5;
+    DWORD unknown6[3];
+    DWORD weather_effects;
+    DWORD unknown7[10];
+    struct STAD_STRUCT stad;
+    DWORD home_team_encoded;
+};
+// home team encoded-id offset: 0x100
+// home team name offset:       0x104
+// away team encoded-id offset: 0x620
+// away team name offset:       0x624
+
 typedef unordered_map<string,wstring*> lookup_cache_t;
 lookup_cache_t _lookup_cache;
 
