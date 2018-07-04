@@ -43,4 +43,51 @@ static BYTE lcpk_pattern_at_lookup_file[16] =
     "\x48\x8d\x54\x24\x20";
 static int lcpk_offs_at_lookup_file = 0;
 
+/*
+000000014126DF00 | 49 63 00                           | movsxd rax,dword ptr ds:[r8]            | prep to write team info
+000000014126DF03 | 83 F8 02                           | cmp eax,2                               |
+000000014126DF06 | 7D 16                              | jge pes2018.14126DF1E                   |
+000000014126DF08 | 4C 69 C0 20 05 00 00               | imul r8,rax,520                         |
+000000014126DF0F | 48 81 C1 04 01 00 00               | add rcx,104                             |
+000000014126DF16 | 49 03 C8                           | add rcx,r8                              |
+*/
+static BYTE pattern_set_team_id[26] =
+    "\x49\x63\x00"
+    "\x83\xf8\x02"
+    "\x7d\x16"
+    "\x4c\x69\xc0\x20\x05\x00\x00"
+    "\x48\x81\xc1\x04\x01\x00\x00"
+    "\x49\x03\xc8";
+static int offs_set_team_id = 0;
+
+/*
+000000014126DF0C | 83 F8 02                           | cmp eax,2                               |
+000000014126DF0F | 7D 0D                              | jge pes2018.14126DF1E                   |
+000000014126DF11 | 90                                 | nop                                     |
+000000014126DF12 | 90                                 | nop                                     |
+000000014126DF13 | 90                                 | nop                                     |
+000000014126DF14 | 90                                 | nop                                     |
+000000014126DF15 | 90                                 | nop                                     |
+000000014126DF16 | 90                                 | nop                                     |
+000000014126DF17 | 90                                 | nop                                     |
+000000014126DF18 | 90                                 | nop                                     |
+*/
+static BYTE pattern_set_team_id_tail[14] =
+    "\x83\xf8\x02"
+    "\x7d\x0d"
+    "\x90\x90\x90\x90\x90\x90\x90\x90";
+
+/*
+00000001412A4FD5 | 0F B6 82 8B 00 00 00               | movzx eax,byte ptr ds:[rdx+8B]          |
+00000001412A4FDC | 88 81 8B 00 00 00                  | mov byte ptr ds:[rcx+8B],al             |
+00000001412A4FE2 | 48 8B C1                           | mov rax,rcx                             |
+00000001412A4FE5 | C3                                 | ret                                     |
+*/
+static BYTE pattern_set_settings[18] =
+    "\x0f\xb6\x82\x8b\x00\x00\x00"
+    "\x88\x81\x8b\x00\x00\x00"
+    "\x48\x8b\xc1"
+    "\xc3";
+static int offs_set_settings = 0;
+
 #endif

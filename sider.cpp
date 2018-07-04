@@ -107,6 +107,7 @@ struct STAD_STRUCT {
 };
 
 struct MATCH_INFO_STRUCT {
+    DWORD dw0;
     WORD match_id;
     WORD tournament_id_encoded;
     BYTE match_leg;
@@ -127,10 +128,15 @@ struct MATCH_INFO_STRUCT {
     struct STAD_STRUCT stad;
     DWORD home_team_encoded;
 };
-// home team encoded-id offset: 0x100
-// home team name offset:       0x104
-// away team encoded-id offset: 0x620
-// away team name offset:       0x624
+// home team encoded-id offset: 0x104
+// home team name offset:       0x108
+// away team encoded-id offset: 0x624
+// away team name offset:       0x628
+
+int get_context_field_int(const char *name);
+void set_context_field_boolean(const char *name, bool value);
+void set_context_field_int(const char *name, int value);
+void set_context_field_nil(const char *name);
 
 typedef unordered_map<string,wstring*> lookup_cache_t;
 lookup_cache_t _lookup_cache;
@@ -167,6 +173,14 @@ extern "C" void sider_lookup_file(LONGLONG p1, LONGLONG p2, char *filename);
 
 extern "C" void sider_lookup_file_hk();
 
+extern "C" void sider_set_team_id(DWORD *dest, DWORD *team_id_encoded, DWORD offset);
+
+extern "C" void sider_set_team_id_hk();
+
+extern "C" void sider_set_settings(STAD_STRUCT *dest_ss, STAD_STRUCT *src_ss);
+
+extern "C" void sider_set_settings_hk();
+
 static DWORD dwThreadId;
 static DWORD hookingThreadId = 0;
 static HMODULE myHDLL;
@@ -186,15 +200,17 @@ struct module_t {
     int evt_lcpk_make_key;
     int evt_lcpk_get_filepath;
     int evt_lcpk_rewrite;
-    /*
     int evt_set_home_team;
     int evt_set_away_team;
+    /*
     int evt_set_tid;
     int evt_set_match_time;
     int evt_set_stadium_choice;
+    */
     int evt_set_stadium;
     int evt_set_conditions;
     int evt_after_set_conditions;
+    /*
     int evt_set_stadium_for_replay;
     int evt_set_conditions_for_replay;
     int evt_after_set_conditions_for_replay;
@@ -243,6 +259,8 @@ public:
     BYTE *_hp_at_extend_cpk;
     BYTE *_hp_at_mem_copy;
     BYTE *_hp_at_lookup_file;
+    BYTE *_hp_at_set_team_id;
+    BYTE *_hp_at_set_settings;
 
     ~config_t() {}
     config_t(const wstring& section_name, const wchar_t* config_ini) :
@@ -258,7 +276,9 @@ public:
                  _hp_at_get_size(NULL),
                  _hp_at_extend_cpk(NULL),
                  _hp_at_mem_copy(NULL),
-                 _hp_at_lookup_file(NULL)
+                 _hp_at_lookup_file(NULL),
+                 _hp_at_set_team_id(NULL),
+                 _hp_at_set_settings(NULL)
     {
         wchar_t settings[32767];
         RtlZeroMemory(settings, sizeof(settings));
@@ -573,6 +593,226 @@ bool file_exists(wstring *fullpath, LONGLONG *size)
         return true;
     }
     return false;
+}
+
+int get_context_field_int(const char *name, int default_value)
+{
+    int value = default_value;
+    if (_config->_lua_enabled) {
+        EnterCriticalSection(&_cs);
+        lua_pushvalue(L, 1); // ctx
+        lua_getfield(L, -1, name);
+        if (lua_isnumber(L, -1)) {
+            value = luaL_checkinteger(L, -1);
+        }
+        lua_pop(L, 2);
+        LeaveCriticalSection(&_cs);
+    }
+    return value;
+}
+
+void set_context_field_int(const char *name, int value)
+{
+    if (_config->_lua_enabled) {
+        EnterCriticalSection(&_cs);
+        lua_pushvalue(L, 1); // ctx
+        lua_pushinteger(L, value);
+        lua_setfield(L, -2, name);
+        lua_pop(L, 1);
+        LeaveCriticalSection(&_cs);
+    }
+}
+
+void set_context_field_nil(const char *name)
+{
+    if (_config->_lua_enabled) {
+        EnterCriticalSection(&_cs);
+        lua_pushvalue(L, 1); // ctx
+        lua_pushnil(L);
+        lua_setfield(L, -2, name);
+        lua_pop(L, 1);
+        LeaveCriticalSection(&_cs);
+    }
+}
+
+void set_context_field_boolean(const char *name, bool value)
+{
+    if (_config->_lua_enabled) {
+        EnterCriticalSection(&_cs);
+        lua_pushvalue(L, 1); // ctx
+        lua_pushboolean(L, (value)?1:0);
+        lua_setfield(L, -2, name);
+        lua_pop(L, 1);
+        LeaveCriticalSection(&_cs);
+    }
+}
+
+void set_match_info(MATCH_INFO_STRUCT* mis)
+{
+    int match_id = (int)(mis->match_id);
+    int match_leg = (int)(mis->match_leg);
+    int match_info = (int)(mis->match_info);
+
+    if (match_id != 0 && (match_leg == 0 || match_leg == 1)) {
+        set_context_field_int("match_leg", match_leg+1);
+    }
+    else {
+        set_context_field_nil("match_leg");
+    }
+    set_context_field_int("match_id", match_id);
+    if (match_info != 55) {
+        set_context_field_int("match_info", match_info);
+    }
+}
+
+bool module_set_stadium(module_t *m, MATCH_INFO_STRUCT *mi)
+{
+    bool res(false);
+    if (m->evt_set_stadium != 0) {
+        EnterCriticalSection(&_cs);
+        STAD_STRUCT *ss = &(mi->stad);
+        lua_pushvalue(m->L, m->evt_set_stadium);
+        lua_xmove(m->L, L, 1);
+        // push params
+        lua_pushvalue(L, 1); // ctx
+        lua_newtable(L);
+        lua_pushinteger(L, ss->stadium);
+        lua_setfield(L, -2, "stadium");
+        lua_pushinteger(L, ss->timeofday);
+        lua_setfield(L, -2, "timeofday");
+        lua_pushinteger(L, ss->weather);
+        lua_setfield(L, -2, "weather");
+        lua_pushinteger(L, mi->weather_effects);
+        lua_setfield(L, -2, "weather_effects");
+        lua_pushinteger(L, ss->season);
+        lua_setfield(L, -2, "season");
+        if (lua_pcall(L, 2, 1, 0) != LUA_OK) {
+            const char *err = luaL_checkstring(L, -1);
+            logu_("[%d] lua ERROR: %s\n", GetCurrentThreadId(), err);
+        }
+        else if (lua_istable(L, -1)) {
+            lua_getfield(L, -1, "stadium");
+            if (lua_isnumber(L, -1)) {
+                ss->stadium = luaL_checkinteger(L, -1);
+            }
+            lua_pop(L, 1);
+            res = true;
+        }
+        else if (lua_isnumber(L, -1)) {
+            ss->stadium = luaL_checkinteger(L, -1);
+            lua_pop(L, 1);
+            res = true;
+        }
+        lua_pop(L, 1);
+        LeaveCriticalSection(&_cs);
+    }
+    return res;
+}
+
+bool module_set_conditions(module_t *m, MATCH_INFO_STRUCT *mi)
+{
+    bool res(false);
+    if (m->evt_set_conditions != 0) {
+        EnterCriticalSection(&_cs);
+        STAD_STRUCT *ss = &(mi->stad);
+        lua_pushvalue(m->L, m->evt_set_conditions);
+        lua_xmove(m->L, L, 1);
+        // push params
+        lua_pushvalue(L, 1); // ctx
+        lua_newtable(L);
+        lua_pushinteger(L, ss->stadium);
+        lua_setfield(L, -2, "stadium");
+        lua_pushinteger(L, ss->timeofday);
+        lua_setfield(L, -2, "timeofday");
+        lua_pushinteger(L, ss->weather);
+        lua_setfield(L, -2, "weather");
+        lua_pushinteger(L, mi->weather_effects);
+        lua_setfield(L, -2, "weather_effects");
+        lua_pushinteger(L, ss->season);
+        lua_setfield(L, -2, "season");
+        if (lua_pcall(L, 2, 1, 0) != LUA_OK) {
+            const char *err = luaL_checkstring(L, -1);
+            logu_("[%d] lua ERROR: %s\n", GetCurrentThreadId(), err);
+        }
+        else if (lua_istable(L, -1)) {
+            lua_getfield(L, -1, "timeofday");
+            if (lua_isnumber(L, -1)) {
+                ss->timeofday = luaL_checkinteger(L, -1);
+            }
+            lua_pop(L, 1);
+            lua_getfield(L, -1, "weather");
+            if (lua_isnumber(L, -1)) {
+                ss->weather = luaL_checkinteger(L, -1);
+            }
+            lua_pop(L, 1);
+            lua_getfield(L, -1, "weather_effects");
+            if (lua_isnumber(L, -1)) {
+                mi->weather_effects = luaL_checkinteger(L, -1);
+            }
+            lua_pop(L, 1);
+            lua_getfield(L, -1, "season");
+            if (lua_isnumber(L, -1)) {
+                ss->season = luaL_checkinteger(L, -1);
+            }
+            lua_pop(L, 1);
+            res = true;
+        }
+        lua_pop(L, 1);
+        LeaveCriticalSection(&_cs);
+    }
+    return res;
+}
+
+void module_after_set_conditions(module_t *m)
+{
+    if (m->evt_after_set_conditions != 0) {
+        EnterCriticalSection(&_cs);
+        lua_pushvalue(m->L, m->evt_after_set_conditions);
+        lua_xmove(m->L, L, 1);
+        // push params
+        lua_pushvalue(L, 1); // ctx
+        if (lua_pcall(L, 1, 0, 0) != LUA_OK) {
+            const char *err = luaL_checkstring(L, -1);
+            logu_("[%d] lua ERROR: %s\n", GetCurrentThreadId(), err);
+        }
+        LeaveCriticalSection(&_cs);
+    }
+}
+
+void module_set_home(module_t *m, DWORD team_id)
+{
+    if (m->evt_set_home_team != 0) {
+        EnterCriticalSection(&_cs);
+        lua_pushvalue(m->L, m->evt_set_home_team);
+        lua_xmove(m->L, L, 1);
+        // push params
+        lua_pushvalue(L, 1); // ctx
+        lua_pushinteger(L, team_id);
+        if (lua_pcall(L, 2, 0, 0) != LUA_OK) {
+            const char *err = luaL_checkstring(L, -1);
+            logu_("[%d] lua ERROR: %s\n", GetCurrentThreadId(), err);
+            lua_pop(L, 1);
+        }
+        LeaveCriticalSection(&_cs);
+    }
+}
+
+void module_set_away(module_t *m, DWORD team_id)
+{
+    if (m->evt_set_away_team != 0) {
+        EnterCriticalSection(&_cs);
+        lua_pushvalue(m->L, m->evt_set_away_team);
+        lua_xmove(m->L, L, 1);
+        // push params
+        lua_pushvalue(L, 1); // ctx
+        lua_pushinteger(L, team_id);
+        if (lua_pcall(L, 2, 0, 0) != LUA_OK) {
+            const char *err = luaL_checkstring(L, -1);
+            logu_("[%d] lua ERROR: %s\n", GetCurrentThreadId(), err);
+            lua_pop(L, 1);
+        }
+        LeaveCriticalSection(&_cs);
+    }
 }
 
 bool module_rewrite(module_t *m, const char *file_name)
@@ -980,6 +1220,102 @@ void sider_lookup_file(LONGLONG p1, LONGLONG p2, char *filename)
     }
 }
 
+DWORD decode_team_id(DWORD team_id_encoded)
+{
+    return (team_id_encoded >> 0x0e) & 0xffff;
+}
+
+void sider_set_team_id(DWORD *dest, DWORD *team_id_encoded, DWORD offset)
+{
+    DWORD team_id;
+    team_id = decode_team_id(*team_id_encoded);
+    bool is_home = (offset == 0);
+    if (is_home) {
+        logu_("setting HOME team: %d\n", team_id);
+        set_context_field_int("home_team", team_id);
+    }
+    else {
+        logu_("setting AWAY team: %d\n", team_id);
+        set_context_field_int("away_team", team_id);
+    }
+
+    BYTE *p = (BYTE*)dest - 0x104;
+    p = (is_home) ? p : p - 0x520;
+    MATCH_INFO_STRUCT *mi = (MATCH_INFO_STRUCT*)p;
+
+    if (is_home) {
+        set_match_info(mi);
+        set_context_field_int("tournament_id", mi->tournament_id_encoded);
+        set_context_field_int("match_time", mi->match_time);
+        set_context_field_int("weather_effects", mi->weather_effects);
+        set_context_field_int("stadium_choice", mi->stadium_choice);
+        // lua call-backs
+        if (_config->_lua_enabled) {
+            list<module_t*>::iterator i;
+            for (i = _modules.begin(); i != _modules.end(); i++) {
+                module_t *m = *i;
+                module_set_home(m, team_id);
+            }
+        }
+    }
+    else {
+        // lua call-backs
+        if (_config->_lua_enabled) {
+            list<module_t*>::iterator i;
+            for (i = _modules.begin(); i != _modules.end(); i++) {
+                module_t *m = *i;
+                module_set_away(m, team_id);
+            }
+        }
+    }
+}
+
+void sider_set_settings(STAD_STRUCT *dest_ss, STAD_STRUCT *src_ss)
+{
+    if (_config->_lua_enabled) {
+        MATCH_INFO_STRUCT *mi = (MATCH_INFO_STRUCT*)((BYTE*)dest_ss - 0x68);
+
+        // update match info
+        set_match_info(mi);
+
+        // lua callbacks
+        list<module_t*>::iterator i;
+        for (i = _modules.begin(); i != _modules.end(); i++) {
+            module_t *m = *i;
+            if (module_set_stadium(m, mi)) {
+                break;
+            }
+        }
+        for (i = _modules.begin(); i != _modules.end(); i++) {
+            module_t *m = *i;
+            if (module_set_conditions(m, mi)) {
+                break;
+            }
+        }
+
+        set_context_field_int("stadium", dest_ss->stadium);
+        set_context_field_int("timeofday", dest_ss->timeofday);
+        set_context_field_int("weather", dest_ss->weather);
+        set_context_field_int("weather_effects", mi->weather_effects);
+        set_context_field_int("season", dest_ss->season);
+
+        // sync the thumbnail
+        mi->stadium_choice = dest_ss->stadium;
+
+        // clear stadium_choice in context
+        set_context_field_nil("stadium_choice");
+        //_had_stadium_choice = false;
+
+        for (i = _modules.begin(); i != _modules.end(); i++) {
+            module_t *m = *i;
+            module_after_set_conditions(m);
+        }
+    }
+
+    logu_("set_settings:: stadium=%d, timeofday=%d, weather=%d, season=%d\n",
+        dest_ss->stadium, dest_ss->timeofday, dest_ss->weather, dest_ss->season);
+}
+
 BYTE* get_target_location(BYTE *call_location)
 {
     if (call_location) {
@@ -1029,6 +1365,21 @@ void hook_call(BYTE *loc, BYTE *p, size_t nops) {
     }
 }
 
+void hook_call_with_tail(BYTE *loc, BYTE *p, BYTE *tail, size_t tail_size) {
+    if (!loc) {
+        return;
+    }
+    DWORD protection = 0;
+    DWORD newProtection = PAGE_EXECUTE_READWRITE;
+    if (VirtualProtect(loc, 16, newProtection, &protection)) {
+        memcpy(loc, "\x48\xb8", 2);
+        memcpy(loc+2, &p, sizeof(BYTE*));  // mov rax,<target_addr>
+        memcpy(loc+10, "\xff\xd0", 2);      // call rax
+        memcpy(loc+12, tail, tail_size);  // tail code
+        log_(L"hook_call: hooked at %p\n", loc);
+    }
+}
+
 static int sider_context_register(lua_State *L)
 {
     const char *event_key = luaL_checkstring(L, 1);
@@ -1062,7 +1413,6 @@ static int sider_context_register(lua_State *L)
         _curr_m->evt_lcpk_rewrite = lua_gettop(_curr_m->L);
         logu_("Registered for \"%s\" event\n", event_key);
     }
-    /*
     else if (strcmp(event_key, "set_home_team")==0) {
         lua_pushvalue(L, -1);
         lua_xmove(L, _curr_m->L, 1);
@@ -1075,6 +1425,7 @@ static int sider_context_register(lua_State *L)
         _curr_m->evt_set_away_team = lua_gettop(_curr_m->L);
         logu_("Registered for \"%s\" event\n", event_key);
     }
+    /*
     else if (strcmp(event_key, "set_tournament_id")==0) {
         lua_pushvalue(L, -1);
         lua_xmove(L, _curr_m->L, 1);
@@ -1093,6 +1444,7 @@ static int sider_context_register(lua_State *L)
         _curr_m->evt_set_stadium_choice = lua_gettop(_curr_m->L);
         logu_("Registered for \"%s\" event\n", event_key);
     }
+    */
     else if (strcmp(event_key, "set_stadium")==0) {
         lua_pushvalue(L, -1);
         lua_xmove(L, _curr_m->L, 1);
@@ -1111,6 +1463,7 @@ static int sider_context_register(lua_State *L)
         _curr_m->evt_after_set_conditions = lua_gettop(_curr_m->L);
         logu_("Registered for \"%s\" event\n", event_key);
     }
+    /*
     else if (strcmp(event_key, "set_stadium_for_replay")==0) {
         lua_pushvalue(L, -1);
         lua_xmove(L, _curr_m->L, 1);
@@ -1478,7 +1831,9 @@ bool all_found(config_t *cfg) {
         cfg->_hp_at_get_size > 0 &&
         cfg->_hp_at_extend_cpk > 0 &&
         cfg->_hp_at_mem_copy > 0 &&
-        cfg->_hp_at_lookup_file > 0
+        cfg->_hp_at_lookup_file > 0 &&
+        cfg->_hp_at_set_team_id > 0 &&
+        cfg->_hp_at_set_settings > 0
     );
 }
 
@@ -1489,7 +1844,7 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
         base, base + h->Misc.VirtualSize, h->Misc.VirtualSize);
     bool result(false);
 
-#define NUM_PATTERNS 5
+#define NUM_PATTERNS 7
     if (_config->_livecpk_enabled) {
         BYTE *frag[NUM_PATTERNS];
         frag[0] = lcpk_pattern_at_read_file;
@@ -1497,24 +1852,32 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
         frag[2] = lcpk_pattern_at_write_cpk_filesize;
         frag[3] = lcpk_pattern_at_mem_copy;
         frag[4] = lcpk_pattern_at_lookup_file;
+        frag[5] = pattern_set_team_id;
+        frag[6] = pattern_set_settings;
         size_t frag_len[NUM_PATTERNS];
         frag_len[0] = sizeof(lcpk_pattern_at_read_file)-1;
         frag_len[1] = sizeof(lcpk_pattern_at_get_size)-1;
         frag_len[2] = sizeof(lcpk_pattern_at_write_cpk_filesize)-1;
         frag_len[3] = sizeof(lcpk_pattern_at_mem_copy)-1;
         frag_len[4] = sizeof(lcpk_pattern_at_lookup_file)-1;
+        frag_len[5] = sizeof(pattern_set_team_id)-1;
+        frag_len[6] = sizeof(pattern_set_settings)-1;
         int offs[NUM_PATTERNS];
         offs[0] = lcpk_offs_at_read_file;
         offs[1] = lcpk_offs_at_get_size;
         offs[2] = lcpk_offs_at_write_cpk_filesize;
         offs[3] = lcpk_offs_at_mem_copy;
         offs[4] = lcpk_offs_at_lookup_file;
+        offs[5] = offs_set_team_id;
+        offs[6] = offs_set_settings;
         BYTE **addrs[NUM_PATTERNS];
         addrs[0] = &_config->_hp_at_read_file;
         addrs[1] = &_config->_hp_at_get_size;
         addrs[2] = &_config->_hp_at_extend_cpk;
         addrs[3] = &_config->_hp_at_mem_copy;
         addrs[4] = &_config->_hp_at_lookup_file;
+        addrs[5] = &_config->_hp_at_set_team_id;
+        addrs[6] = &_config->_hp_at_set_settings;
 
         for (int j=0; j<NUM_PATTERNS; j++) {
             BYTE *p = find_code_frag(base, h->Misc.VirtualSize,
@@ -1541,6 +1904,9 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
             hook_call(_config->_hp_at_extend_cpk, (BYTE*)sider_extend_cpk_hk, 1);
             hook_call(_config->_hp_at_mem_copy, (BYTE*)sider_mem_copy_hk, 0);
             hook_call(_config->_hp_at_lookup_file, (BYTE*)sider_lookup_file_hk, 3);
+            hook_call_with_tail(_config->_hp_at_set_team_id, (BYTE*)sider_set_team_id_hk,
+                (BYTE*)pattern_set_team_id_tail, sizeof(pattern_set_team_id_tail)-1);
+            hook_call(_config->_hp_at_set_settings, (BYTE*)sider_set_settings_hk, 1);
         }
     }
 
