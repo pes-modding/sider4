@@ -29,13 +29,15 @@ sider_read_file_hk endp
 
 sider_get_size_hk proc
 
+        sub     rsp,8
         mov     rcx,rsi
         mov     rdx,rbx
-        sub     rsp,28h
+        sub     rsp,20h
         call    sider_get_size
-        add     rsp,28h
+        add     rsp,20h
         mov     rcx,qword ptr [rdi+1d8h]
         mov     eax,1
+        add     rsp,8
         ret
 
 sider_get_size_hk endp
@@ -51,26 +53,29 @@ sider_extend_cpk_hk endp
 
 sider_mem_copy_hk proc
 
+        sub     rsp,10h
         add     r8,r10
         push    r12
         sub     rsp,20h
         call    sider_mem_copy
         add     rsp,28h
         mov     qword ptr [rdi+10h],rbx
+        add     rsp,10h
         ret
 
 sider_mem_copy_hk endp
 
 sider_lookup_file_hk proc
 
-        sub     rsp,38h
-        mov     [rsp+30h],rax
+        push    rax
+        sub     rsp,30h
         call    sider_lookup_file
-        mov     rax,[rsp+30h]
-        add     rsp,38h
+        add     rsp,20h
         lea     rcx,qword ptr [rdi+110h]
         mov     r8,rsi
-        lea     rdx,qword ptr [rsp+28h]
+        lea     rdx,qword ptr [rsp+40h]
+        add     rsp,10h
+        pop     rax
         ret
 
 sider_lookup_file_hk endp
@@ -120,12 +125,14 @@ sider_set_team_id_hk endp
 
 sider_set_settings_hk proc
 
+        push    rcx
+        push    rdx
         movzx   eax,byte ptr [rdx+8bh]
         mov     byte ptr [rcx+8bh],al
-        push    rcx
-        sub     rsp,30h
+        sub     rsp,28h
         call    sider_set_settings
-        add     rsp,30h
+        add     rsp,28h
+        pop     rdx
         pop     rcx
         ret
 
