@@ -137,6 +137,15 @@ int get_context_field_int(const char *name);
 void set_context_field_boolean(const char *name, bool value);
 void set_context_field_int(const char *name, int value);
 void set_context_field_nil(const char *name);
+void clear_context();
+
+const char *_context_fields[] = {
+    "match_id", "match_info", "match_leg", "match_time",
+    "away_team", "home_team", "stadium_choice", "stadium",
+    "weather", "weather_effects", "timeofday", "season",
+    "tournament_id",
+};
+size_t _context_fields_count = sizeof(_context_fields)/sizeof(const char *);
 
 typedef unordered_map<string,wstring*> lookup_cache_t;
 lookup_cache_t _lookup_cache;
@@ -200,8 +209,7 @@ struct module_t {
     int evt_lcpk_make_key;
     int evt_lcpk_get_filepath;
     int evt_lcpk_rewrite;
-    int evt_set_home_team;
-    int evt_set_away_team;
+    int evt_set_teams;
     /*
     int evt_set_tid;
     int evt_set_match_time;
@@ -595,6 +603,20 @@ bool file_exists(wstring *fullpath, LONGLONG *size)
     return false;
 }
 
+void clear_context_fields(const char **names, size_t num_items)
+{
+    if (_config->_lua_enabled) {
+        EnterCriticalSection(&_cs);
+        lua_pushvalue(L, 1); // ctx
+        for (int i=0; i<num_items; i++) {
+            lua_pushnil(L);
+            lua_setfield(L, -2, names[i]);
+        }
+        lua_pop(L, 1);
+        LeaveCriticalSection(&_cs);
+    }
+}
+
 int get_context_field_int(const char *name, int default_value)
 {
     int value = default_value;
@@ -660,7 +682,7 @@ void set_match_info(MATCH_INFO_STRUCT* mis)
         set_context_field_nil("match_leg");
     }
     set_context_field_int("match_id", match_id);
-    if (match_info != 55) {
+    if (match_info < 128) {
         set_context_field_int("match_info", match_info);
     }
 }
@@ -779,34 +801,17 @@ void module_after_set_conditions(module_t *m)
     }
 }
 
-void module_set_home(module_t *m, DWORD team_id)
+void module_set_teams(module_t *m, DWORD home, DWORD away)
 {
-    if (m->evt_set_home_team != 0) {
+    if (m->evt_set_teams != 0) {
         EnterCriticalSection(&_cs);
-        lua_pushvalue(m->L, m->evt_set_home_team);
+        lua_pushvalue(m->L, m->evt_set_teams);
         lua_xmove(m->L, L, 1);
         // push params
         lua_pushvalue(L, 1); // ctx
-        lua_pushinteger(L, team_id);
-        if (lua_pcall(L, 2, 0, 0) != LUA_OK) {
-            const char *err = luaL_checkstring(L, -1);
-            logu_("[%d] lua ERROR: %s\n", GetCurrentThreadId(), err);
-            lua_pop(L, 1);
-        }
-        LeaveCriticalSection(&_cs);
-    }
-}
-
-void module_set_away(module_t *m, DWORD team_id)
-{
-    if (m->evt_set_away_team != 0) {
-        EnterCriticalSection(&_cs);
-        lua_pushvalue(m->L, m->evt_set_away_team);
-        lua_xmove(m->L, L, 1);
-        // push params
-        lua_pushvalue(L, 1); // ctx
-        lua_pushinteger(L, team_id);
-        if (lua_pcall(L, 2, 0, 0) != LUA_OK) {
+        lua_pushinteger(L, home);
+        lua_pushinteger(L, away);
+        if (lua_pcall(L, 3, 0, 0) != LUA_OK) {
             const char *err = luaL_checkstring(L, -1);
             logu_("[%d] lua ERROR: %s\n", GetCurrentThreadId(), err);
             lua_pop(L, 1);
@@ -1227,44 +1232,41 @@ DWORD decode_team_id(DWORD team_id_encoded)
 
 void sider_set_team_id(DWORD *dest, DWORD *team_id_encoded, DWORD offset)
 {
-    DWORD team_id;
-    team_id = decode_team_id(*team_id_encoded);
     bool is_home = (offset == 0);
     if (is_home) {
-        logu_("setting HOME team: %d\n", team_id);
-        set_context_field_int("home_team", team_id);
+        logu_("setting HOME team: %d\n", decode_team_id(*team_id_encoded));
     }
     else {
-        logu_("setting AWAY team: %d\n", team_id);
-        set_context_field_int("away_team", team_id);
+        logu_("setting AWAY team: %d\n", decode_team_id(*team_id_encoded));
     }
 
     BYTE *p = (BYTE*)dest - 0x104;
     p = (is_home) ? p : p - 0x520;
     MATCH_INFO_STRUCT *mi = (MATCH_INFO_STRUCT*)p;
+    logu_("mi->dw0: %d\n", mi->dw0);
+    logu_("mi->tournament_id_encoded: %d\n", mi->tournament_id_encoded);
 
-    if (is_home) {
-        set_match_info(mi);
-        set_context_field_int("tournament_id", mi->tournament_id_encoded);
-        set_context_field_int("match_time", mi->match_time);
-        set_context_field_int("weather_effects", mi->weather_effects);
-        set_context_field_int("stadium_choice", mi->stadium_choice);
-        // lua call-backs
-        if (_config->_lua_enabled) {
-            list<module_t*>::iterator i;
-            for (i = _modules.begin(); i != _modules.end(); i++) {
-                module_t *m = *i;
-                module_set_home(m, team_id);
-            }
+    if (_config->_lua_enabled) {
+        if (is_home) {
+            clear_context_fields(_context_fields, _context_fields_count);
         }
-    }
-    else {
-        // lua call-backs
-        if (_config->_lua_enabled) {
+        else {
+            set_context_field_int("tournament_id", mi->tournament_id_encoded);
+            set_context_field_int("match_time", mi->match_time);
+            set_context_field_int("stadium_choice", mi->stadium_choice);
+            set_match_info(mi);
+
+            DWORD home = decode_team_id(*(DWORD*)((BYTE*)dest - 0x520));
+            DWORD away = decode_team_id(*team_id_encoded);
+
+            set_context_field_int("home_team", home);
+            set_context_field_int("away_team", away);
+
+            // lua call-backs
             list<module_t*>::iterator i;
             for (i = _modules.begin(); i != _modules.end(); i++) {
                 module_t *m = *i;
-                module_set_away(m, team_id);
+                module_set_teams(m, home, away);
             }
         }
     }
@@ -1274,9 +1276,16 @@ void sider_set_settings(STAD_STRUCT *dest_ss, STAD_STRUCT *src_ss)
 {
     if (_config->_lua_enabled) {
         MATCH_INFO_STRUCT *mi = (MATCH_INFO_STRUCT*)((BYTE*)dest_ss - 0x68);
+        logu_("mi->dw0: %d\n", mi->dw0);
+        logu_("mi->tournament_id_encoded: %d\n", mi->tournament_id_encoded);
+
+        // check for unnecessary calls
+        if (mi->match_info >= 128) {
+            return;
+        }
 
         // update match info
-        set_match_info(mi);
+        //set_match_info(mi);
 
         // lua callbacks
         list<module_t*>::iterator i;
@@ -1413,16 +1422,10 @@ static int sider_context_register(lua_State *L)
         _curr_m->evt_lcpk_rewrite = lua_gettop(_curr_m->L);
         logu_("Registered for \"%s\" event\n", event_key);
     }
-    else if (strcmp(event_key, "set_home_team")==0) {
+    else if (strcmp(event_key, "set_teams")==0) {
         lua_pushvalue(L, -1);
         lua_xmove(L, _curr_m->L, 1);
-        _curr_m->evt_set_home_team = lua_gettop(_curr_m->L);
-        logu_("Registered for \"%s\" event\n", event_key);
-    }
-    else if (strcmp(event_key, "set_away_team")==0) {
-        lua_pushvalue(L, -1);
-        lua_xmove(L, _curr_m->L, 1);
-        _curr_m->evt_set_away_team = lua_gettop(_curr_m->L);
+        _curr_m->evt_set_teams = lua_gettop(_curr_m->L);
         logu_("Registered for \"%s\" event\n", event_key);
     }
     /*
