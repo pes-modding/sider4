@@ -1243,7 +1243,7 @@ void sider_set_team_id(DWORD *dest, DWORD *team_id_encoded, DWORD offset)
     BYTE *p = (BYTE*)dest - 0x104;
     p = (is_home) ? p : p - 0x520;
     MATCH_INFO_STRUCT *mi = (MATCH_INFO_STRUCT*)p;
-    logu_("mi->dw0: %d\n", mi->dw0);
+    logu_("mi->dw0: 0x%x\n", mi->dw0);
     logu_("mi->tournament_id_encoded: %d\n", mi->tournament_id_encoded);
 
     if (_config->_lua_enabled) {
@@ -1276,12 +1276,12 @@ void sider_set_settings(STAD_STRUCT *dest_ss, STAD_STRUCT *src_ss)
 {
     if (_config->_lua_enabled) {
         MATCH_INFO_STRUCT *mi = (MATCH_INFO_STRUCT*)((BYTE*)dest_ss - 0x68);
-        logu_("mi->dw0: %d\n", mi->dw0);
+        logu_("mi->dw0: 0x%x\n", mi->dw0);
         logu_("mi->tournament_id_encoded: %d\n", mi->tournament_id_encoded);
 
-        // check for unnecessary calls
-        if (mi->match_info >= 128) {
-            return;
+        // test: match minutes
+        if (mi->tournament_id_encoded == 48) {
+            mi->match_time = 1;
         }
 
         // update match info
@@ -1292,6 +1292,8 @@ void sider_set_settings(STAD_STRUCT *dest_ss, STAD_STRUCT *src_ss)
         for (i = _modules.begin(); i != _modules.end(); i++) {
             module_t *m = *i;
             if (module_set_stadium(m, mi)) {
+                // sync the thumbnail
+                mi->stadium_choice = mi->stad.stadium;
                 break;
             }
         }
@@ -1307,9 +1309,6 @@ void sider_set_settings(STAD_STRUCT *dest_ss, STAD_STRUCT *src_ss)
         set_context_field_int("weather", dest_ss->weather);
         set_context_field_int("weather_effects", mi->weather_effects);
         set_context_field_int("season", dest_ss->season);
-
-        // sync the thumbnail
-        mi->stadium_choice = dest_ss->stadium;
 
         // clear stadium_choice in context
         set_context_field_nil("stadium_choice");
@@ -1385,7 +1384,7 @@ void hook_call_with_tail(BYTE *loc, BYTE *p, BYTE *tail, size_t tail_size) {
         memcpy(loc+2, &p, sizeof(BYTE*));  // mov rax,<target_addr>
         memcpy(loc+10, "\xff\xd0", 2);      // call rax
         memcpy(loc+12, tail, tail_size);  // tail code
-        log_(L"hook_call: hooked at %p\n", loc);
+        log_(L"hook_call_with_tail: hooked at %p\n", loc);
     }
 }
 
