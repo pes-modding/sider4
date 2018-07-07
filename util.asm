@@ -106,6 +106,8 @@ sider_set_team_id_hk proc frame
         imul    r8,rax,520h
         add     rcx,104h
         add     rcx,r8
+        mov     [rsp+20h],rcx
+        mov     [rsp+28h],r8
         call    sider_set_team_id
         mov     rcx,[rsp+20h]
         mov     r8,[rsp+28h]
