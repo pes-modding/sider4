@@ -14,30 +14,32 @@ extern sider_set_team_id:proc
 extern sider_set_settings:proc
 
 .code
-sider_read_file_hk proc
+sider_read_file_hk proc frame
 
         mov     rax,[rsp+28h]
-        sub     rsp,8
-        push    r12
-        push    rax
-        sub     rsp,20h
+        sub     rsp,38h
+.endprolog
+        mov     [rsp+20h],rax
+        mov     [rsp+28h],r12
         call    sider_read_file
+        mov     r12,[rsp+28h]
         add     rsp,38h
         ret
 
 sider_read_file_hk endp
 
-sider_get_size_hk proc
+sider_get_size_hk proc frame
 
-        sub     rsp,8
+        sub     rsp,28h
+.endprolog
+        mov     [rsp+20h],rdx
         mov     rcx,rsi
         mov     rdx,rbx
-        sub     rsp,20h
         call    sider_get_size
-        add     rsp,20h
         mov     rcx,qword ptr [rdi+1d8h]
         mov     eax,1
-        add     rsp,8
+        mov     rdx,[rsp+20h]
+        add     rsp,28h
         ret
 
 sider_get_size_hk endp
@@ -51,30 +53,30 @@ sider_extend_cpk_hk proc
 
 sider_extend_cpk_hk endp
 
-sider_mem_copy_hk proc
+sider_mem_copy_hk proc frame
 
-        sub     rsp,10h
-        add     r8,r10
         push    r12
         sub     rsp,20h
+.endprolog
+        add     r8,r10
         call    sider_mem_copy
-        add     rsp,28h
         mov     qword ptr [rdi+10h],rbx
-        add     rsp,10h
+        add     rsp,20h
+        pop     r12
         ret
 
 sider_mem_copy_hk endp
 
-sider_lookup_file_hk proc
+sider_lookup_file_hk proc frame
 
         push    rax
-        sub     rsp,30h
+        sub     rsp,20h
+.endprolog
         call    sider_lookup_file
-        add     rsp,20h
         lea     rcx,qword ptr [rdi+110h]
         mov     r8,rsi
-        lea     rdx,qword ptr [rsp+40h]
-        add     rsp,10h
+        lea     rdx,qword ptr [rsp+50h]
+        add     rsp,20h
         pop     rax
         ret
 
@@ -89,32 +91,31 @@ sider_lookup_file_hk endp
 ;000000014126DF19 | E9 D2 72 7D FF                     | jmp pes2018.140A451F0                   |
 ;000000014126DF1E | C3                                 | ret                                     |
 
-sider_set_team_id_hk proc
+sider_set_team_id_hk proc frame
 
+        push    rdx
+        push    r9
+        push    r10
+        push    r11
+        sub     rsp,38h
+.endprolog
         movsxd  rax,dword ptr [r8]
+        mov     [rsp+30h],rax
         cmp     eax,2
         jge     done
         imul    r8,rax,520h
         add     rcx,104h
         add     rcx,r8
-        push    rax
-        push    rcx
-        push    rdx
-        push    r8
-        push    r9
-        push    r10
-        push    r11
-        sub     rsp,20h
         call    sider_set_team_id
-        add     rsp,20h
+        mov     rcx,[rsp+20h]
+        mov     r8,[rsp+28h]
+        mov     rax,[rsp+30h]
+done:   add     rsp,38h
         pop     r11
         pop     r10
         pop     r9
-        pop     r8
         pop     rdx
-        pop     rcx
-        pop     rax
-done:   ret
+        ret
 
 sider_set_team_id_hk endp
 
@@ -123,13 +124,14 @@ sider_set_team_id_hk endp
 ;00000001412A4FE2 | 48 8B C1                           | mov rax,rcx                             |
 ;00000001412A4FE5 | C3                                 | ret                                     |
 
-sider_set_settings_hk proc
+sider_set_settings_hk proc frame
 
         push    rcx
         push    rdx
+        sub     rsp,28h
+.endprolog
         movzx   eax,byte ptr [rdx+8bh]
         mov     byte ptr [rcx+8bh],al
-        sub     rsp,28h
         call    sider_set_settings
         add     rsp,28h
         pop     rdx
