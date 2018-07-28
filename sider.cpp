@@ -1274,15 +1274,20 @@ void sider_set_team_id(DWORD *dest, DWORD *team_id_encoded, DWORD offset)
 
 void sider_set_settings(STAD_STRUCT *dest_ss, STAD_STRUCT *src_ss)
 {
+    MATCH_INFO_STRUCT *mi = (MATCH_INFO_STRUCT*)((BYTE*)dest_ss - 0x68);
+    if (!mi) {
+        // safety check
+        return;
+    }
+
+    // test: match minutes
+    //if (mi->tournament_id_encoded == 48) {
+    //    mi->match_time = 1;
+    //}
+
     if (_config->_lua_enabled) {
-        MATCH_INFO_STRUCT *mi = (MATCH_INFO_STRUCT*)((BYTE*)dest_ss - 0x68);
         logu_("mi->dw0: 0x%x\n", mi->dw0);
         logu_("mi->tournament_id_encoded: %d\n", mi->tournament_id_encoded);
-
-        // test: match minutes
-        if (mi->tournament_id_encoded == 48) {
-            mi->match_time = 1;
-        }
 
         // update match info
         //set_match_info(mi);
@@ -1291,11 +1296,14 @@ void sider_set_settings(STAD_STRUCT *dest_ss, STAD_STRUCT *src_ss)
         list<module_t*>::iterator i;
         for (i = _modules.begin(); i != _modules.end(); i++) {
             module_t *m = *i;
+            //logu_("before module_set_stadium\n");
             if (module_set_stadium(m, mi)) {
+                //logu_("after module_set_stadium\n");
                 // sync the thumbnail
                 mi->stadium_choice = mi->stad.stadium;
                 break;
             }
+            //logu_("after module_set_stadium\n");
         }
         for (i = _modules.begin(); i != _modules.end(); i++) {
             module_t *m = *i;
