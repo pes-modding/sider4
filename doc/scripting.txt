@@ -303,3 +303,21 @@ and modify values in RAM and you know what binary formats are used for
 those values. See modules/memtest.lua - as the example module that
 demonstrates the usage.
 
+
+memory.hex(str)
+
+Utility function to output a string of bytes in hexadecimal format.
+For example:
+
+    local s = 'Football'
+    log(memory.hex(s))  --> prints "466f6f7462616c6c" in the log
+
+
+memory.tohexstring(number)
+
+Utitily function to ouput an integer number in hexadecimal format.
+For example:
+
+    local v = 12345
+    log(memory.tohexstring(v))  --> prints "0x3039" in the log
+
