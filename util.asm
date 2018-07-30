@@ -143,13 +143,13 @@ sider_set_settings_hk proc frame
         .pushreg rcx
         push    rdx
         .pushreg rdx
-        sub     rsp,28h
-        .allocstack 28h
+        sub     rsp,20h
+        .allocstack 20h
 .endprolog
         movzx   eax,byte ptr [rdx+8bh]
         mov     byte ptr [rcx+8bh],al
         call    sider_set_settings
-        add     rsp,28h
+        add     rsp,20h
         pop     rdx
         pop     rcx
         ret
