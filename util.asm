@@ -18,6 +18,7 @@ sider_read_file_hk proc frame
 
         mov     rax,[rsp+28h]
         sub     rsp,38h
+        .allocstack 38h
 .endprolog
         mov     [rsp+20h],rax
         mov     [rsp+28h],r12
@@ -31,6 +32,7 @@ sider_read_file_hk endp
 sider_get_size_hk proc frame
 
         sub     rsp,28h
+        .allocstack 28h
 .endprolog
         mov     [rsp+20h],rdx
         mov     rcx,rsi
@@ -56,7 +58,9 @@ sider_extend_cpk_hk endp
 sider_mem_copy_hk proc frame
 
         push    r12
+        .pushreg r12
         sub     rsp,20h
+        .allocstack 20h
 .endprolog
         add     r8,r10
         call    sider_mem_copy
@@ -70,7 +74,9 @@ sider_mem_copy_hk endp
 sider_lookup_file_hk proc frame
 
         push    rax
+        .pushreg rax
         sub     rsp,20h
+        .allocstack 20h
 .endprolog
         call    sider_lookup_file
         lea     rcx,qword ptr [rdi+110h]
@@ -94,10 +100,15 @@ sider_lookup_file_hk endp
 sider_set_team_id_hk proc frame
 
         push    rdx
+        .pushreg rdx
         push    r9
+        .pushreg r9
         push    r10
+        .pushreg r10
         push    r11
+        .pushreg r11
         sub     rsp,38h
+        .allocstack 38h
 .endprolog
         movsxd  rax,dword ptr [r8]
         mov     [rsp+30h],rax
@@ -129,8 +140,11 @@ sider_set_team_id_hk endp
 sider_set_settings_hk proc frame
 
         push    rcx
+        .pushreg rcx
         push    rdx
+        .pushreg rdx
         sub     rsp,28h
+        .allocstack 28h
 .endprolog
         movzx   eax,byte ptr [rdx+8bh]
         mov     byte ptr [rcx+8bh],al
