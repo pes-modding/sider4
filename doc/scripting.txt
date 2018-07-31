@@ -9,9 +9,9 @@ July 31, 2018
 ~~~~~~~~~~~~~~~
 
 The main idea here is to provide a safe and flexible way to
-extend Sider functionality. It will (eventually) allow modders to
-alter many aspects of the game, load all sorts of extra content
-and even do gameplay tweaks.
+extend Sider functionality. It allow modders to alter many
+aspects of game logic, and load all sorts of extra content
+and in future versions, gameplay tweaks will be possible too.
 
 Instead of offering a C interface, where the programmers would need
 to write a DLL, i'm a taking a different approach here and trying to
@@ -22,7 +22,8 @@ occur later in the game.
 
 Lua is by now a well-established language of choice for scripting
 support in games, used all over the gaming industry. Most famous
-example is probably WarCraft.
+example is probably WarCraft, but many modern games use it, including
+Pro Evolution Soccer itself.
 
 To boost the performance, Sider uses a just-in-time compiler for Lua
 called LuaJIT, written by Mike Pall. LuaJIT is a truly brilliant piece

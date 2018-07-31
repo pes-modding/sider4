@@ -1,0 +1,15 @@
+Tournament ids
+
+(this document will need to be updated as more
+tournament ids are discovered as we play them. I was
+too lazy to map them all, so i just put here a few
+to start with. But it is easy to discover others too,
+because sider logs them in sider.log as the matches
+are played.)
+=======================================================
+
+65535 - Exhibition match
+17 - English 1st League (Premiership)
+48 - Konami Cup
+86 - English Super Cup (Community Shield)
+
