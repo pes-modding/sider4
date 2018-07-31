@@ -1270,8 +1270,8 @@ void sider_set_team_id(DWORD *dest, DWORD *team_id_encoded, DWORD offset)
     BYTE *p = (BYTE*)dest - 0x104;
     p = (is_home) ? p : p - 0x520;
     MATCH_INFO_STRUCT *mi = (MATCH_INFO_STRUCT*)p;
-    logu_("mi->dw0: 0x%x\n", mi->dw0);
-    logu_("mi->tournament_id_encoded: %d\n", mi->tournament_id_encoded);
+    //logu_("mi->dw0: 0x%x\n", mi->dw0);
+    logu_("tournament_id: %d\n", mi->tournament_id_encoded);
 
     if (_config->_lua_enabled) {
         if (is_home) {
@@ -1309,8 +1309,8 @@ void sider_set_settings(STAD_STRUCT *dest_ss, STAD_STRUCT *src_ss)
     }
 
     if (_config->_lua_enabled) {
-        logu_("mi->dw0: 0x%x\n", mi->dw0);
-        logu_("mi->tournament_id_encoded: %d\n", mi->tournament_id_encoded);
+        //logu_("mi->dw0: 0x%x\n", mi->dw0);
+        logu_("tournament_id: %d\n", mi->tournament_id_encoded);
 
         // update match info
         //set_match_info(mi);
@@ -1356,7 +1356,7 @@ void sider_set_settings(STAD_STRUCT *dest_ss, STAD_STRUCT *src_ss)
         }
     }
 
-    logu_("set_settings:: stadium=%d, timeofday=%d, weather=%d, season=%d\n",
+    logu_("settings now:: stadium=%d, timeofday=%d, weather=%d, season=%d\n",
         dest_ss->stadium, dest_ss->timeofday, dest_ss->weather, dest_ss->season);
 }
 
