@@ -119,7 +119,7 @@ struct MATCH_INFO_STRUCT {
     BYTE unknown3[3];
     DWORD unknown4[4];
     BYTE db0x03;
-    BYTE db0x12;
+    BYTE db0x17;
     BYTE stadium_choice;
     BYTE unknown5;
     DWORD unknown6[3];
@@ -212,7 +212,9 @@ struct module_t {
     int evt_set_teams;
     /*
     int evt_set_tid;
+    */
     int evt_set_match_time;
+    /*
     int evt_set_stadium_choice;
     */
     int evt_set_stadium;
@@ -685,6 +687,31 @@ void set_match_info(MATCH_INFO_STRUCT* mis)
     if (match_info < 128) {
         set_context_field_int("match_info", match_info);
     }
+}
+
+bool module_set_match_time(module_t *m, DWORD *num_minutes)
+{
+    bool res(false);
+    if (m->evt_set_match_time != 0) {
+        EnterCriticalSection(&_cs);
+        lua_pushvalue(m->L, m->evt_set_match_time);
+        lua_xmove(m->L, L, 1);
+        // push params
+        lua_pushvalue(L, 1); // ctx
+        lua_pushinteger(L, *num_minutes);
+        if (lua_pcall(L, 2, 1, 0) != LUA_OK) {
+            const char *err = luaL_checkstring(L, -1);
+            logu_("[%d] lua ERROR: %s\n", GetCurrentThreadId(), err);
+        }
+        else if (lua_isnumber(L, -1)) {
+            int value = luaL_checkinteger(L, -1);
+            *num_minutes = value;
+            res = true;
+        }
+        lua_pop(L, 1);
+        LeaveCriticalSection(&_cs);
+    }
+    return res;
 }
 
 bool module_set_stadium(module_t *m, MATCH_INFO_STRUCT *mi)
@@ -1275,15 +1302,11 @@ void sider_set_team_id(DWORD *dest, DWORD *team_id_encoded, DWORD offset)
 void sider_set_settings(STAD_STRUCT *dest_ss, STAD_STRUCT *src_ss)
 {
     MATCH_INFO_STRUCT *mi = (MATCH_INFO_STRUCT*)((BYTE*)dest_ss - 0x68);
-    if (!mi || mi->db0x03 != 0x03 || mi->db0x12 != 0x12) {
+    bool ok = mi && (mi->db0x03 == 0x03) && (mi->db0x17 == 0x17 || mi->db0x17 == 0x12);
+    if (!ok) {
         // safety check
         return;
     }
-
-    // test: match minutes
-    //if (mi->tournament_id_encoded == 48) {
-    //    mi->match_time = 1;
-    //}
 
     if (_config->_lua_enabled) {
         logu_("mi->dw0: 0x%x\n", mi->dw0);
@@ -1296,14 +1319,19 @@ void sider_set_settings(STAD_STRUCT *dest_ss, STAD_STRUCT *src_ss)
         list<module_t*>::iterator i;
         for (i = _modules.begin(); i != _modules.end(); i++) {
             module_t *m = *i;
-            //logu_("before module_set_stadium\n");
+            DWORD num_minutes = mi->match_time;
+            if (module_set_match_time(m, &num_minutes)) {
+                mi->match_time = num_minutes;
+                set_context_field_int("match_time", mi->match_time);
+            }
+        }
+        for (i = _modules.begin(); i != _modules.end(); i++) {
+            module_t *m = *i;
             if (module_set_stadium(m, mi)) {
-                //logu_("after module_set_stadium\n");
                 // sync the thumbnail
                 mi->stadium_choice = mi->stad.stadium;
                 break;
             }
-            //logu_("after module_set_stadium\n");
         }
         for (i = _modules.begin(); i != _modules.end(); i++) {
             module_t *m = *i;
@@ -1442,12 +1470,14 @@ static int sider_context_register(lua_State *L)
         _curr_m->evt_set_tid = lua_gettop(_curr_m->L);
         logu_("Registered for \"%s\" event\n", event_key);
     }
+    */
     else if (strcmp(event_key, "set_match_time")==0) {
         lua_pushvalue(L, -1);
         lua_xmove(L, _curr_m->L, 1);
         _curr_m->evt_set_match_time = lua_gettop(_curr_m->L);
         logu_("Registered for \"%s\" event\n", event_key);
     }
+    /*
     else if (strcmp(event_key, "set_stadium_choice")==0) {
         lua_pushvalue(L, -1);
         lua_xmove(L, _curr_m->L, 1);
