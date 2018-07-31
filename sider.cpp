@@ -1271,7 +1271,9 @@ void sider_set_team_id(DWORD *dest, DWORD *team_id_encoded, DWORD offset)
     p = (is_home) ? p : p - 0x520;
     MATCH_INFO_STRUCT *mi = (MATCH_INFO_STRUCT*)p;
     //logu_("mi->dw0: 0x%x\n", mi->dw0);
-    logu_("tournament_id: %d\n", mi->tournament_id_encoded);
+    if (!is_home) {
+        logu_("tournament_id: %d\n", mi->tournament_id_encoded);
+    }
 
     if (_config->_lua_enabled) {
         if (is_home) {
@@ -1308,10 +1310,9 @@ void sider_set_settings(STAD_STRUCT *dest_ss, STAD_STRUCT *src_ss)
         return;
     }
 
-    if (_config->_lua_enabled) {
-        //logu_("mi->dw0: 0x%x\n", mi->dw0);
-        logu_("tournament_id: %d\n", mi->tournament_id_encoded);
+    logu_("tournament_id: %d\n", mi->tournament_id_encoded);
 
+    if (_config->_lua_enabled) {
         // update match info
         //set_match_info(mi);
 
