@@ -14,12 +14,10 @@ extern sider_set_team_id:proc
 extern sider_set_settings:proc
 
 .code
-sider_read_file_hk proc frame
+sider_read_file_hk proc
 
         mov     rax,[rsp+28h]
         sub     rsp,38h
-        .allocstack 38h
-.endprolog
         mov     [rsp+20h],rax
         mov     [rsp+28h],r12
         call    sider_read_file
@@ -29,11 +27,9 @@ sider_read_file_hk proc frame
 
 sider_read_file_hk endp
 
-sider_get_size_hk proc frame
+sider_get_size_hk proc
 
         sub     rsp,28h
-        .allocstack 28h
-.endprolog
         mov     [rsp+20h],rdx
         mov     rcx,rsi
         mov     rdx,rbx
@@ -55,13 +51,10 @@ sider_extend_cpk_hk proc
 
 sider_extend_cpk_hk endp
 
-sider_mem_copy_hk proc frame
+sider_mem_copy_hk proc
 
         push    r12
-        .pushreg r12
         sub     rsp,20h
-        .allocstack 20h
-.endprolog
         add     r8,r10
         call    sider_mem_copy
         mov     qword ptr [rdi+10h],rbx
@@ -71,13 +64,10 @@ sider_mem_copy_hk proc frame
 
 sider_mem_copy_hk endp
 
-sider_lookup_file_hk proc frame
+sider_lookup_file_hk proc
 
         push    rax
-        .pushreg rax
         sub     rsp,20h
-        .allocstack 20h
-.endprolog
         call    sider_lookup_file
         lea     rcx,qword ptr [rdi+110h]
         mov     r8,rsi
@@ -97,19 +87,13 @@ sider_lookup_file_hk endp
 ;000000014126DF19 | E9 D2 72 7D FF                     | jmp pes2018.140A451F0                   |
 ;000000014126DF1E | C3                                 | ret                                     |
 
-sider_set_team_id_hk proc frame
+sider_set_team_id_hk proc
 
         push    rdx
-        .pushreg rdx
         push    r9
-        .pushreg r9
         push    r10
-        .pushreg r10
         push    r11
-        .pushreg r11
         sub     rsp,38h
-        .allocstack 38h
-.endprolog
         movsxd  rax,dword ptr [r8]
         mov     [rsp+30h],rax
         cmp     eax,2
@@ -137,21 +121,63 @@ sider_set_team_id_hk endp
 ;00000001412A4FE2 | 48 8B C1                           | mov rax,rcx                             |
 ;00000001412A4FE5 | C3                                 | ret                                     |
 
-sider_set_settings_hk proc frame
+sider_set_settings_hk proc
 
+        sub     rsp,8
+        pushfq
         push    rcx
-        .pushreg rcx
         push    rdx
-        .pushreg rdx
+        push    r8
+        push    r9
+        push    r10
+        push    r11
+        sub     rsp,200h
+        vmovdqu  ymmword ptr [rsp+00h],ymm0
+        vmovdqu  ymmword ptr [rsp+20h],ymm1
+        vmovdqu  ymmword ptr [rsp+40h],ymm2
+        vmovdqu  ymmword ptr [rsp+60h],ymm3
+        vmovdqu  ymmword ptr [rsp+80h],ymm4
+        vmovdqu  ymmword ptr [rsp+0a0h],ymm5
+        vmovdqu  ymmword ptr [rsp+0c0h],ymm6
+        vmovdqu  ymmword ptr [rsp+0e0h],ymm7
+        vmovdqu  ymmword ptr [rsp+100h],ymm8
+        vmovdqu  ymmword ptr [rsp+120h],ymm9
+        vmovdqu  ymmword ptr [rsp+140h],ymm10
+        vmovdqu  ymmword ptr [rsp+160h],ymm11
+        vmovdqu  ymmword ptr [rsp+180h],ymm12
+        vmovdqu  ymmword ptr [rsp+1a0h],ymm13
+        vmovdqu  ymmword ptr [rsp+1c0h],ymm14
+        vmovdqu  ymmword ptr [rsp+1e0h],ymm15
         sub     rsp,20h
-        .allocstack 20h
-.endprolog
         movzx   eax,byte ptr [rdx+8bh]
         mov     byte ptr [rcx+8bh],al
         call    sider_set_settings
         add     rsp,20h
+        vmovdqu  ymm0,ymmword ptr [rsp+00h]
+        vmovdqu  ymm1,ymmword ptr [rsp+20h]
+        vmovdqu  ymm2,ymmword ptr [rsp+40h]
+        vmovdqu  ymm3,ymmword ptr [rsp+60h]
+        vmovdqu  ymm4,ymmword ptr [rsp+80h]
+        vmovdqu  ymm5,ymmword ptr [rsp+0a0h]
+        vmovdqu  ymm6,ymmword ptr [rsp+0c0h]
+        vmovdqu  ymm7,ymmword ptr [rsp+0e0h]
+        vmovdqu  ymm8,ymmword ptr [rsp+100h]
+        vmovdqu  ymm9,ymmword ptr [rsp+120h]
+        vmovdqu  ymm10,ymmword ptr [rsp+140h]
+        vmovdqu  ymm11,ymmword ptr [rsp+160h]
+        vmovdqu  ymm12,ymmword ptr [rsp+180h]
+        vmovdqu  ymm13,ymmword ptr [rsp+1a0h]
+        vmovdqu  ymm14,ymmword ptr [rsp+1c0h]
+        vmovdqu  ymm15,ymmword ptr [rsp+1e0h]
+        add     rsp,200h
+        pop     r11
+        pop     r10
+        pop     r9
+        pop     r8
         pop     rdx
         pop     rcx
+        popfq
+        add     rsp,8
         ret
 
 sider_set_settings_hk endp
