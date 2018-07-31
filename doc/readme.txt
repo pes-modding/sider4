@@ -1,7 +1,7 @@
 Sider 4 for Pro Evolution Soccer 2018
 =====================================
 Copyright (C) 2018 juce
-Version 4.0.1
+Version 4.1.0
 
 
 
@@ -13,6 +13,12 @@ at run-time with content from files stored on disk, instead of
 having to pack everything into CPK-archives. (This feature
 is similar to Kitserver's AFS2FS and to FileLoader for earler
 versions of PES).
+
+If you know a little bit how to program, you can write your own
+game logic using Sider's scripting engine, which uses Lua.
+This requires some reading and understanding of how the game
+works, but it's really not that hard ;-)
+See scripting.txt - for detailed documentation on that.
 
 
 
@@ -94,6 +100,21 @@ is a filename match, the lookup stops. (So, higher root will win, if both of
 them have the same file). You can use either absolute paths or relative.
 Relative paths will be calculated relative to the folder where sider.exe is
 located.
+
+
+lua.enabled = 1
+
+- This turns on/off the scripting support. Extension modules can be
+written in Lua 5.1 (LuaJIT), using a subset of standard libraries and
+also objects and events provides by sider. See "scripting.txt" file for
+a programmer's guide to writing lua modules for sider.
+
+
+lua.module = "kitrewrite.lua"
+lua.module = "timeaccel.lua"
+
+- Specifies the order in which the extension modules are loaded. These
+modules must be in "modules" folder inside the sider root directory.
 
 
 
