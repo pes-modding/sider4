@@ -119,7 +119,7 @@ struct MATCH_INFO_STRUCT {
     BYTE unknown3[3];
     DWORD unknown4[4];
     BYTE db0x03;
-    BYTE db0x17;
+    BYTE db0x12;
     BYTE stadium_choice;
     BYTE unknown5;
     DWORD unknown6[3];
@@ -1275,7 +1275,7 @@ void sider_set_team_id(DWORD *dest, DWORD *team_id_encoded, DWORD offset)
 void sider_set_settings(STAD_STRUCT *dest_ss, STAD_STRUCT *src_ss)
 {
     MATCH_INFO_STRUCT *mi = (MATCH_INFO_STRUCT*)((BYTE*)dest_ss - 0x68);
-    if (!mi) {
+    if (!mi || mi->db0x03 != 0x03 || mi->db0x12 != 0x12) {
         // safety check
         return;
     }
