@@ -870,32 +870,37 @@ bool module_rewrite(module_t *m, const char *file_name)
     return res;
 }
 
-void module_make_key(module_t *m, const char *file_name, char *key)
+void module_make_key(module_t *m, const char *file_name, char *key, size_t key_maxsize)
 {
+    key[0] = '\0';
+    size_t maxlen = key_maxsize-1;
     if (m->evt_lcpk_make_key != 0) {
         EnterCriticalSection(&_cs);
         lua_pushvalue(m->L, m->evt_lcpk_make_key);
         lua_xmove(m->L, L, 1);
-        // set default of empty key:
-        // in case nil is returned, or an error occurs
-        key[0] = '\0';
         // push params
         lua_pushvalue(L, 1); // ctx
         lua_pushstring(L, file_name);
         if (lua_pcall(L, 2, 1, 0) != LUA_OK) {
             const char *err = luaL_checkstring(L, -1);
             logu_("[%d] lua ERROR: %s\n", GetCurrentThreadId(), err);
+            // fallback to filename
+            strncat(key, file_name, maxlen);
         }
         else if (lua_isstring(L, -1)) {
             const char *s = luaL_checkstring(L, -1);
-            strcpy(key, s);
+            strncat(key, s, maxlen);
+        }
+        else {
+            // fallback to filename
+            strncat(key, file_name, maxlen);
         }
         lua_pop(L, 1);
         LeaveCriticalSection(&_cs);
     }
     else {
-        // assume filename is a key
-        strcpy(key, file_name);
+        // default to filename
+        strncat(key, file_name, maxlen);
     }
 }
 
@@ -959,7 +964,7 @@ wstring* have_content(char *file_name)
             continue;
         }
 
-        module_make_key(m, file_name, key);
+        module_make_key(m, file_name, key, sizeof(key));
                
         if (_config->_lookup_cache_enabled) {
             unordered_map<string,wstring*>::iterator j;
