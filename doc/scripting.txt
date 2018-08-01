@@ -1,7 +1,7 @@
 Sider 4 Lua Module Programmers Guide
 ====================================
-For sider.dll version: 4.1.0
-July 31, 2018
+For sider.dll version: 4.1.1
+August 1, 2018
 
 
 
@@ -104,7 +104,7 @@ of the game. As more scripts/modules are created by the community
 the context object will probably also change, and include more and more
 information about the game.
 
-As of 4.1.0 release, this is what the context object has:
+As of 4.1.1 release, this is what the context object has:
 
 ctx.home_team  - id of the home team of the current match, after
                  it is selected in the exhibition match, or the next
@@ -219,7 +219,7 @@ return a full absolute filename. Sider will cache this absolute filename
 using the key returned by livecpk_make_key, and the next time this file
 is needed, the livecpk_get_filepath event will NOT fire. (This is
 again done for performance reasons so that we don't unnecessarily seek
-the disk). See trophy.lua for an example usage of this event.
+the disk).
 
 
 - Event name: "livecpk_rewrite"
@@ -285,7 +285,7 @@ can receive the event and process it. Or, the handler can return an stadium
 id - an integer - to switch the stadium to another one. Be careful though:
 sider doesn't check for correctness of values, so if you switch to a
 non-existent stadium, the game will probably crash or go into infinite
-"loading" loop. For an example usage - see stadium.lua module.
+"loading" loop. For an example usage - see stadswitch.lua module.
 
 ( For backwards compatibility, returning a table like this:
 { stadium = <stadium-id> } is also supported. However, any other keys in
@@ -361,7 +361,7 @@ Standard Lua:
     assert, ipairs, pairs, tostring, tonumber, table,
     string, math, unpack, type, error, io, os, _VERSION, _G
 Sider:
-    log, memory, gameplay, gfx, _FILE
+    log, memory, _FILE
 
 You can also enable "ffi" and "bit" modules, which are LuaJIT
 extensions. By default, they are disabled. To enable, modify your

@@ -1,0 +1,22 @@
+Sider 4 Release History
+=======================
+
+
+August 1, 2018
+v4.1.1
+- fix for crash in set_teams event handler
+
+
+July 31, 2018
+v4.1.0
+- Lua scripting engine, first release:
+  set_teams, set_stadium, set_conditions, set_match_time
+  as well as LiveCPK-related events are supported.
+
+
+June 15, 2018
+v4.0.1
+- initial public release
+- LiveCPK support
+
+
