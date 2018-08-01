@@ -5,6 +5,10 @@ Sider 4 Release History
 August 1, 2018
 v4.1.1
 - fix for crash in set_teams event handler
+- subtle correction for make_key handler behaviour:
+  if it returns nil or any non-string value, or throws
+  an error, then the key as assumed to be the filename.
+  (as described in doc/scripting.txt)
 
 
 July 31, 2018
