@@ -1,6 +1,7 @@
 #define UNICODE
 
 //#include "stdafx.h"
+#include <time.h>
 #include <stdio.h>
 #include <windows.h>
 #include <list>
@@ -200,6 +201,79 @@ bool _is_sider(false);
 bool _is_edit_mode(false);
 HANDLE _mh = NULL;
 
+typedef struct {
+    wstring *key;
+    __time64_t expires;
+} key_map_value_t;
+
+typedef unordered_map<string,key_map_value_t> key_map_t;
+class key_cache_t {
+    key_map_t _map;
+    int _ttl_sec;
+    CRITICAL_SECTION *_kcs;
+public:
+    key_cache_t(CRITICAL_SECTION *cs, int ttl_sec) :
+        _ttl_sec(ttl_sec), _kcs(cs) {}
+    ~key_cache_t() {
+        log_(L"key_cache: size:%d\n", _map.size());
+    }
+    bool lookup(char *filename, wstring **res) {
+        EnterCriticalSection(_kcs);
+        key_map_t::iterator i = _map.find(filename);
+        if (i != _map.end()) {
+            __time64_t ltime;
+            _time64(&ltime);
+            //logu_("key_cache::lookup: %s %llu > %llu\n", filename, i->second.expires, ltime);
+            if (i->second.expires > ltime) {
+                // hit
+                *res = i->second.key;
+                //logu_("lookup FOUND: (%08x) %s\n", i->first, filename);
+                LeaveCriticalSection(_kcs);
+                return true;
+            }
+            else {
+                // hit, but expired value, so: miss
+                //logu_("lookup FALSE MATCH: (%08x) %s\n", i->first, filename);
+                _map.erase(i);
+            }
+        }
+        else {
+            // miss
+        }
+        *res = NULL;
+        LeaveCriticalSection(_kcs);
+        return false;
+    }
+    void put(char *filename, wstring *key) {
+        EnterCriticalSection(_kcs);
+        __time64_t ltime;
+        _time64(&ltime);
+        key_map_value_t v;
+        v.key = key;
+        v.expires = ltime + _ttl_sec;
+        /*
+        logu_("key_cache::put: key = %s\n", filename);
+        if (v.key) {
+            log_(L"key_cache::put: %s, %llu\n", v.key->c_str(), v.expires);
+        }
+        else {
+            log_(L"key_cache::put: NULL, %llu\n", v.expires);
+        }
+        */
+        pair<key_map_t::iterator,bool> res = _map.insert(
+            pair<string,key_map_value_t>(filename, v));
+        if (!res.second) {
+            // replace existing
+            //logu_("REPLACED for: %s\n", filename);
+            res.first->second.key = v.key;
+            res.first->second.expires = v.expires;
+        }
+        LeaveCriticalSection(_kcs);
+    }
+};
+
+key_cache_t *_key_cache(NULL);
+
 struct module_t {
     lookup_cache_t *cache;
     lua_State* L;
@@ -258,6 +332,7 @@ public:
     bool _luajit_extensions_enabled;
     list<wstring> _lua_extra_globals;
     int _dll_mapping_option;
+    int _key_cache_ttl_sec;
     wstring _section_name;
     list<wstring> _cpk_roots;
     list<wstring> _exe_names;
@@ -282,6 +357,7 @@ public:
                  _luajit_extensions_enabled(false),
                  _close_sider_on_exit(false),
                  _start_minimized(false),
+                 _key_cache_ttl_sec(10),
                  _hp_at_read_file(NULL),
                  _hp_at_get_size(NULL),
                  _hp_at_extend_cpk(NULL),
@@ -367,6 +443,10 @@ public:
 
         _luajit_extensions_enabled = GetPrivateProfileInt(_section_name.c_str(),
             L"luajit.ext.enabled", _luajit_extensions_enabled,
+            config_ini);
+
+        _key_cache_ttl_sec = GetPrivateProfileInt(_section_name.c_str(),
+            L"key-cache.ttl-sec", _key_cache_ttl_sec,
             config_ini);
     }
 };
@@ -955,6 +1035,11 @@ bool do_rewrite(char *file_name)
 wstring* have_content(char *file_name)
 {
     char key[512];
+    wstring *res = NULL;
+    if (_key_cache->lookup(file_name, &res)) {
+        // key-cache: for performance
+        return res;
+    }
     list<module_t*>::iterator i;
     //logu_("have_content: %p --> %s\n", (DWORD)file_name, file_name);
     for (i = _modules.begin(); i != _modules.end(); i++) {
@@ -971,6 +1056,7 @@ wstring* have_content(char *file_name)
             j = m->cache->find(key);
             if (j != m->cache->end()) {
                 if (j->second != NULL) {
+                    _key_cache->put(file_name, j->second);
                     return j->second;
                 }
                 // this module does not have the file:
@@ -984,6 +1070,7 @@ wstring* have_content(char *file_name)
                 m->cache->insert(pair<string,wstring*>(key, res));
                 if (res) {
                     // we have a file: stop and return
+                    _key_cache->put(file_name, res);
                     return res;
                 }
             }
@@ -993,10 +1080,12 @@ wstring* have_content(char *file_name)
             wstring *res = module_get_filepath(m, file_name, key);
             if (res) {
                 // we have a file: stop and return
+                _key_cache->put(file_name, res);
                 return res;
             }
         }
     }
+    _key_cache->put(file_name, NULL);
     return NULL;
 }
 
@@ -1827,7 +1916,7 @@ DWORD install_func(LPVOID thread_param) {
     _file_to_lookup_size = strlen(_file_to_lookup) + 1 + 4 + 1;
 
     InitializeCriticalSection(&_cs);
-    //_addr_cache = new addr_cache_t(&_cs);
+    _key_cache = new key_cache_t(&_cs, _config->_key_cache_ttl_sec);
 
     log_(L"debug = %d\n", _config->_debug);
     //if (_config->_game_speed) {
@@ -1840,6 +1929,7 @@ DWORD install_func(LPVOID thread_param) {
     //log_(L"address-cache.enabled = %d\n", (int)(!_config->_ac_off));
     log_(L"close.on.exit = %d\n", _config->_close_sider_on_exit);
     log_(L"start.minimized = %d\n", _config->_start_minimized);
+    log_(L"key-cache.ttl-sec = %d\n", _config->_key_cache_ttl_sec);
 
     for (list<wstring>::iterator it = _config->_cpk_roots.begin();
             it != _config->_cpk_roots.end();
@@ -2016,6 +2106,7 @@ INT APIENTRY DllMain(HMODULE hDLL, DWORD Reason, LPVOID Reserved)
             }
 
             if (_is_game) {
+                if (_key_cache) { delete _key_cache; }
                 log_(L"DLL detaching from (%s).\n", module_filename);
                 log_(L"Unmapping from PES.\n");
 
