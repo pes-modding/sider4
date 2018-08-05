@@ -190,6 +190,10 @@ extern "C" void sider_set_settings(STAD_STRUCT *dest_ss, STAD_STRUCT *src_ss);
 
 extern "C" void sider_set_settings_hk();
 
+extern "C" WORD sider_trophy_check(MATCH_INFO_STRUCT *mi);
+
+extern "C" WORD sider_trophy_check_hk(MATCH_INFO_STRUCT *mi);
+
 static DWORD dwThreadId;
 static DWORD hookingThreadId = 0;
 static HMODULE myHDLL;
@@ -203,9 +207,7 @@ HANDLE _mh = NULL;
 struct module_t {
     lookup_cache_t *cache;
     lua_State* L;
-    /*
     int evt_trophy_check;
-    */
     int evt_lcpk_make_key;
     int evt_lcpk_get_filepath;
     int evt_lcpk_rewrite;
@@ -271,6 +273,7 @@ public:
     BYTE *_hp_at_lookup_file;
     BYTE *_hp_at_set_team_id;
     BYTE *_hp_at_set_settings;
+    BYTE *_hp_at_trophy_check;
 
     ~config_t() {}
     config_t(const wstring& section_name, const wchar_t* config_ini) :
@@ -288,7 +291,8 @@ public:
                  _hp_at_mem_copy(NULL),
                  _hp_at_lookup_file(NULL),
                  _hp_at_set_team_id(NULL),
-                 _hp_at_set_settings(NULL)
+                 _hp_at_set_settings(NULL),
+                 _hp_at_trophy_check(NULL)
     {
         wchar_t settings[32767];
         RtlZeroMemory(settings, sizeof(settings));
@@ -687,6 +691,42 @@ void set_match_info(MATCH_INFO_STRUCT* mis)
     if (match_info < 128) {
         set_context_field_int("match_info", match_info);
     }
+}
+
+bool module_trophy_rewrite(WORD tournament_id, WORD *new_tid)
+{
+    *new_tid = tournament_id;
+    bool done(false);
+    if (_config->_lua_enabled) {
+        for (list<module_t*>::iterator it = _modules.begin();
+                it != _modules.end();
+                it++) {
+            module_t *m = *it;
+            if (m->evt_trophy_check != 0) {
+                EnterCriticalSection(&_cs);
+                lua_pushvalue(m->L, m->evt_trophy_check);
+                lua_xmove(m->L, L, 1);
+                // push params
+                lua_pushvalue(L, 1); // ctx
+                lua_pushinteger(L, tournament_id);
+                if (lua_pcall(L, 2, 1, 0) != LUA_OK) {
+                    const char *err = luaL_checkstring(L, -1);
+                    logu_("[%d] lua ERROR: %s\n",
+                        GetCurrentThreadId(), err);
+                }
+                else if (lua_isnumber(L, -1)) {
+                    *new_tid = (WORD)luaL_checkint(L, -1);
+                    done = true;
+                }
+                lua_pop(L, 1);
+                LeaveCriticalSection(&_cs);
+                if (done) {
+                    break;
+                }
+            }
+        }
+    }
+    return done;
 }
 
 bool module_set_match_time(module_t *m, DWORD *num_minutes)
@@ -1366,6 +1406,25 @@ void sider_set_settings(STAD_STRUCT *dest_ss, STAD_STRUCT *src_ss)
         dest_ss->stadium, dest_ss->timeofday, dest_ss->weather, dest_ss->season);
 }
 
+WORD sider_trophy_check(MATCH_INFO_STRUCT* mi)
+{
+    WORD tid = mi->tournament_id_encoded;
+    if (_config->_lua_enabled) {
+        // lua callbacks
+        list<module_t*>::iterator i;
+        for (i = _modules.begin(); i != _modules.end(); i++) {
+            module_t *m = *i;
+            WORD new_tid = tid;
+            if (module_trophy_rewrite(tid, &new_tid)) {
+                tid = new_tid;
+                break;
+            }
+        }
+    }
+    logu_("trophy check:: for trophy scenes tournament_id: %d --> %d\n", mi->tournament_id_encoded, tid);
+    return tid;
+}
+
 BYTE* get_target_location(BYTE *call_location)
 {
     if (call_location) {
@@ -1437,14 +1496,12 @@ static int sider_context_register(lua_State *L)
         lua_pushstring(L, "second argument must be a function");
         return lua_error(L);
     }
-    /*
-    if (strcmp(event_key, "tournament_check_for_trophy")==0) {
+    if (strcmp(event_key, "trophy_rewrite")==0) {
         lua_pushvalue(L, -1);
         lua_xmove(L, _curr_m->L, 1);
         _curr_m->evt_trophy_check = lua_gettop(_curr_m->L);
         logu_("Registered for \"%s\" event\n", event_key);
     }
-    */
     else if (strcmp(event_key, "livecpk_make_key")==0) {
         lua_pushvalue(L, -1);
         lua_xmove(L, _curr_m->L, 1);
@@ -1879,7 +1936,8 @@ bool all_found(config_t *cfg) {
         cfg->_hp_at_mem_copy > 0 &&
         cfg->_hp_at_lookup_file > 0 &&
         cfg->_hp_at_set_team_id > 0 &&
-        cfg->_hp_at_set_settings > 0
+        cfg->_hp_at_set_settings > 0 &&
+        cfg->_hp_at_trophy_check > 0
     );
 }
 
@@ -1890,7 +1948,7 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
         base, base + h->Misc.VirtualSize, h->Misc.VirtualSize);
     bool result(false);
 
-#define NUM_PATTERNS 7
+#define NUM_PATTERNS 8
     if (_config->_livecpk_enabled) {
         BYTE *frag[NUM_PATTERNS];
         frag[0] = lcpk_pattern_at_read_file;
@@ -1900,6 +1958,7 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
         frag[4] = lcpk_pattern_at_lookup_file;
         frag[5] = pattern_set_team_id;
         frag[6] = pattern_set_settings;
+        frag[7] = pattern_trophy_check;
         size_t frag_len[NUM_PATTERNS];
         frag_len[0] = sizeof(lcpk_pattern_at_read_file)-1;
         frag_len[1] = sizeof(lcpk_pattern_at_get_size)-1;
@@ -1908,6 +1967,7 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
         frag_len[4] = sizeof(lcpk_pattern_at_lookup_file)-1;
         frag_len[5] = sizeof(pattern_set_team_id)-1;
         frag_len[6] = sizeof(pattern_set_settings)-1;
+        frag_len[7] = sizeof(pattern_trophy_check)-1;
         int offs[NUM_PATTERNS];
         offs[0] = lcpk_offs_at_read_file;
         offs[1] = lcpk_offs_at_get_size;
@@ -1916,6 +1976,7 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
         offs[4] = lcpk_offs_at_lookup_file;
         offs[5] = offs_set_team_id;
         offs[6] = offs_set_settings;
+        offs[7] = offs_trophy_check;
         BYTE **addrs[NUM_PATTERNS];
         addrs[0] = &_config->_hp_at_read_file;
         addrs[1] = &_config->_hp_at_get_size;
@@ -1924,6 +1985,7 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
         addrs[4] = &_config->_hp_at_lookup_file;
         addrs[5] = &_config->_hp_at_set_team_id;
         addrs[6] = &_config->_hp_at_set_settings;
+        addrs[7] = &_config->_hp_at_trophy_check;
 
         for (int j=0; j<NUM_PATTERNS; j++) {
             BYTE *p = find_code_frag(base, h->Misc.VirtualSize,
@@ -1944,6 +2006,9 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
             log_(L"sider_extend_cpk_hk: %p\n", sider_extend_cpk_hk);
             log_(L"sider_mem_copy_hk: %p\n", sider_mem_copy_hk);
             log_(L"sider_lookup_file: %p\n", sider_lookup_file_hk);
+            log_(L"sider_set_team_id: %p\n", sider_set_team_id_hk);
+            log_(L"sider_set_settings: %p\n", sider_set_settings_hk);
+            log_(L"sider_trophy_check: %p\n", sider_trophy_check_hk);
 
             hook_indirect_call(_config->_hp_at_read_file, (BYTE*)sider_read_file_hk);
             hook_call(_config->_hp_at_get_size, (BYTE*)sider_get_size_hk, 0);
@@ -1953,6 +2018,7 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
             hook_call_with_tail(_config->_hp_at_set_team_id, (BYTE*)sider_set_team_id_hk,
                 (BYTE*)pattern_set_team_id_tail, sizeof(pattern_set_team_id_tail)-1);
             hook_call(_config->_hp_at_set_settings, (BYTE*)sider_set_settings_hk, 1);
+            hook_call(_config->_hp_at_trophy_check, (BYTE*)sider_trophy_check_hk, 0);
         }
     }
 
