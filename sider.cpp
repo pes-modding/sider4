@@ -1076,9 +1076,11 @@ wstring* have_content(char *file_name)
 {
     char key[512];
     wstring *res = NULL;
-    if (_key_cache->lookup(file_name, &res)) {
-        // key-cache: for performance
-        return res;
+    if (_config->_key_cache_ttl_sec) {
+        if (_key_cache->lookup(file_name, &res)) {
+            // key-cache: for performance
+            return res;
+        }
     }
     list<module_t*>::iterator i;
     //logu_("have_content: %p --> %s\n", (DWORD)file_name, file_name);
@@ -1096,7 +1098,7 @@ wstring* have_content(char *file_name)
             j = m->cache->find(key);
             if (j != m->cache->end()) {
                 if (j->second != NULL) {
-                    _key_cache->put(file_name, j->second);
+                    if (_config->_key_cache_ttl_sec) _key_cache->put(file_name, j->second);
                     return j->second;
                 }
                 // this module does not have the file:
@@ -1120,12 +1122,12 @@ wstring* have_content(char *file_name)
             wstring *res = module_get_filepath(m, file_name, key);
             if (res) {
                 // we have a file: stop and return
-                _key_cache->put(file_name, res);
+                if (_config->_key_cache_ttl_sec) _key_cache->put(file_name, res);
                 return res;
             }
         }
     }
-    _key_cache->put(file_name, NULL);
+    if (_config->_key_cache_ttl_sec) _key_cache->put(file_name, NULL);
     return NULL;
 }
 
