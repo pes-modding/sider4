@@ -12,6 +12,7 @@ extern sider_mem_copy:proc
 extern sider_lookup_file:proc
 extern sider_set_team_id:proc
 extern sider_set_settings:proc
+extern sider_trophy_check:proc
 
 .code
 sider_read_file_hk proc
@@ -181,5 +182,15 @@ sider_set_settings_hk proc
         ret
 
 sider_set_settings_hk endp
+
+sider_trophy_check_hk proc
+
+        sub     rsp,28h
+        lea     rcx,qword ptr [rdi+312a8h]
+        call    sider_trophy_check
+        add     rsp,28h
+        ret
+
+sider_trophy_check_hk endp
 
 end
