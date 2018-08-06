@@ -41,7 +41,7 @@ function m.trophy_rewrite(ctx, tournament_id)
     if entry then
         local tid, relpath = unpack(entry)
         if tid and relpath then
-            tcontent = "\\" .. relpath .. "\\"
+            tcontent = content_root .. "\\" .. relpath .. "\\"
             log(string.format("This tournament is: %d. Remapping cup scenes to: %d", tournament_id, tid))
             log(string.format("Using content from: %s", tcontent))
             return tid
@@ -56,9 +56,8 @@ function m.make_key(ctx, filename)
 end
 
 function m.get_filepath(ctx, filename, key)
-    if key and tcontent then
-        return content_root .. key
-    end
+    -- key is either nil or already contains full filename
+    return key
 end
 
 function m.init(ctx)
