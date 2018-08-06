@@ -95,10 +95,19 @@ static int offs_set_settings = 0;
 0000000141C5A873 | 66 89 44 24 50                     | mov word ptr ss:[rsp+50],ax             |
 0000000141C5A878 | 48 8B CD                           | mov rcx,rbp                             |
 */
-static BYTE pattern_trophy_check[] =
+static BYTE pattern_trophy_check[12] =
     "\x0f\xb7\xd0"
     "\x66\x89\x44\x24\x50"
     "\x48\x8b\xcd";
 static int offs_trophy_check = -12;
+
+/*
+0000000140A0DF3C | 48 89 8B 84 00 00 00                 | mov qword ptr ds:[rbx+84],rcx           |
+0000000140A0DF43 | 48 C7 83 AC 59 01 00 FF FF FF FF     | mov qword ptr ds:[rbx+159AC],FFFFFFFFFF |
+*/
+static BYTE pattern_context_reset[19] =
+    "\x48\x89\x8b\x84\x00\x00\x00"
+    "\x48\xc7\x83\xac\x59\x01\x00\xff\xff\xff\xff";
+static int offs_context_reset = 0;
 
 #endif

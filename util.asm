@@ -13,6 +13,7 @@ extern sider_lookup_file:proc
 extern sider_set_team_id:proc
 extern sider_set_settings:proc
 extern sider_trophy_check:proc
+extern sider_context_reset:proc
 
 .code
 sider_read_file_hk proc
@@ -192,5 +193,16 @@ sider_trophy_check_hk proc
         ret
 
 sider_trophy_check_hk endp
+
+sider_context_reset_hk proc
+
+        sub     rsp,28h
+        mov     qword ptr [rbx+84h],rcx
+        mov     qword ptr [rbx+159ach],0ffffffffh
+        call    sider_context_reset
+        add     rsp,28h
+        ret
+
+sider_context_reset_hk endp
 
 end

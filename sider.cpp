@@ -134,6 +134,8 @@ struct MATCH_INFO_STRUCT {
 // away team encoded-id offset: 0x624
 // away team name offset:       0x628
 
+MATCH_INFO_STRUCT *_main_mi = NULL;
+
 int get_context_field_int(const char *name);
 void set_context_field_boolean(const char *name, bool value);
 void set_context_field_int(const char *name, int value);
@@ -194,6 +196,10 @@ extern "C" void sider_set_settings_hk();
 extern "C" WORD sider_trophy_check(MATCH_INFO_STRUCT *mi);
 
 extern "C" WORD sider_trophy_check_hk(MATCH_INFO_STRUCT *mi);
+
+extern "C" void sider_context_reset();
+
+extern "C" void sider_context_reset_hk();
 
 static DWORD dwThreadId;
 static DWORD hookingThreadId = 0;
@@ -349,6 +355,7 @@ public:
     BYTE *_hp_at_set_team_id;
     BYTE *_hp_at_set_settings;
     BYTE *_hp_at_trophy_check;
+    BYTE *_hp_at_context_reset;
 
     ~config_t() {}
     config_t(const wstring& section_name, const wchar_t* config_ini) :
@@ -368,7 +375,8 @@ public:
                  _hp_at_lookup_file(NULL),
                  _hp_at_set_team_id(NULL),
                  _hp_at_set_settings(NULL),
-                 _hp_at_trophy_check(NULL)
+                 _hp_at_trophy_check(NULL),
+                 _hp_at_context_reset(NULL)
     {
         wchar_t settings[32767];
         RtlZeroMemory(settings, sizeof(settings));
@@ -1406,6 +1414,7 @@ void sider_set_team_id(DWORD *dest, DWORD *team_id_encoded, DWORD offset)
     BYTE *p = (BYTE*)dest - 0x104;
     p = (is_home) ? p : p - 0x520;
     MATCH_INFO_STRUCT *mi = (MATCH_INFO_STRUCT*)p;
+    logu_("mi: %p\n", mi);
     //logu_("mi->dw0: 0x%x\n", mi->dw0);
     if (!is_home) {
         logu_("tournament_id: %d\n", mi->tournament_id_encoded);
@@ -1514,6 +1523,12 @@ WORD sider_trophy_check(MATCH_INFO_STRUCT* mi)
     }
     logu_("trophy check:: for trophy scenes tournament_id: %d --> %d\n", mi->tournament_id_encoded, tid);
     return tid;
+}
+
+void sider_context_reset()
+{
+    clear_context_fields(_context_fields, _context_fields_count);
+    logu_("context reset\n");
 }
 
 BYTE* get_target_location(BYTE *call_location)
@@ -2029,7 +2044,8 @@ bool all_found(config_t *cfg) {
         cfg->_hp_at_lookup_file > 0 &&
         cfg->_hp_at_set_team_id > 0 &&
         cfg->_hp_at_set_settings > 0 &&
-        cfg->_hp_at_trophy_check > 0
+        cfg->_hp_at_trophy_check > 0 &&
+        cfg->_hp_at_context_reset > 0
     );
 }
 
@@ -2040,7 +2056,7 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
         base, base + h->Misc.VirtualSize, h->Misc.VirtualSize);
     bool result(false);
 
-#define NUM_PATTERNS 8
+#define NUM_PATTERNS 9
     if (_config->_livecpk_enabled) {
         BYTE *frag[NUM_PATTERNS];
         frag[0] = lcpk_pattern_at_read_file;
@@ -2051,6 +2067,7 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
         frag[5] = pattern_set_team_id;
         frag[6] = pattern_set_settings;
         frag[7] = pattern_trophy_check;
+        frag[8] = pattern_context_reset;
         size_t frag_len[NUM_PATTERNS];
         frag_len[0] = sizeof(lcpk_pattern_at_read_file)-1;
         frag_len[1] = sizeof(lcpk_pattern_at_get_size)-1;
@@ -2060,6 +2077,7 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
         frag_len[5] = sizeof(pattern_set_team_id)-1;
         frag_len[6] = sizeof(pattern_set_settings)-1;
         frag_len[7] = sizeof(pattern_trophy_check)-1;
+        frag_len[8] = sizeof(pattern_context_reset)-1;
         int offs[NUM_PATTERNS];
         offs[0] = lcpk_offs_at_read_file;
         offs[1] = lcpk_offs_at_get_size;
@@ -2069,6 +2087,7 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
         offs[5] = offs_set_team_id;
         offs[6] = offs_set_settings;
         offs[7] = offs_trophy_check;
+        offs[8] = offs_context_reset;
         BYTE **addrs[NUM_PATTERNS];
         addrs[0] = &_config->_hp_at_read_file;
         addrs[1] = &_config->_hp_at_get_size;
@@ -2078,6 +2097,7 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
         addrs[5] = &_config->_hp_at_set_team_id;
         addrs[6] = &_config->_hp_at_set_settings;
         addrs[7] = &_config->_hp_at_trophy_check;
+        addrs[8] = &_config->_hp_at_context_reset;
 
         for (int j=0; j<NUM_PATTERNS; j++) {
             BYTE *p = find_code_frag(base, h->Misc.VirtualSize,
@@ -2101,6 +2121,7 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
             log_(L"sider_set_team_id: %p\n", sider_set_team_id_hk);
             log_(L"sider_set_settings: %p\n", sider_set_settings_hk);
             log_(L"sider_trophy_check: %p\n", sider_trophy_check_hk);
+            log_(L"sider_context_reset: %p\n", sider_context_reset_hk);
 
             hook_indirect_call(_config->_hp_at_read_file, (BYTE*)sider_read_file_hk);
             hook_call(_config->_hp_at_get_size, (BYTE*)sider_get_size_hk, 0);
@@ -2111,6 +2132,7 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
                 (BYTE*)pattern_set_team_id_tail, sizeof(pattern_set_team_id_tail)-1);
             hook_call(_config->_hp_at_set_settings, (BYTE*)sider_set_settings_hk, 1);
             hook_call(_config->_hp_at_trophy_check, (BYTE*)sider_trophy_check_hk, 0);
+            hook_call(_config->_hp_at_context_reset, (BYTE*)sider_context_reset_hk, 6);
         }
     }
 
