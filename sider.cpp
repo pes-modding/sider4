@@ -781,40 +781,30 @@ void set_match_info(MATCH_INFO_STRUCT* mis)
     }
 }
 
-bool module_trophy_rewrite(WORD tournament_id, WORD *new_tid)
+bool module_trophy_rewrite(module_t *m, WORD tournament_id, WORD *new_tid)
 {
     *new_tid = tournament_id;
-    bool done(false);
-    if (_config->_lua_enabled) {
-        for (list<module_t*>::iterator it = _modules.begin();
-                it != _modules.end();
-                it++) {
-            module_t *m = *it;
-            if (m->evt_trophy_check != 0) {
-                EnterCriticalSection(&_cs);
-                lua_pushvalue(m->L, m->evt_trophy_check);
-                lua_xmove(m->L, L, 1);
-                // push params
-                lua_pushvalue(L, 1); // ctx
-                lua_pushinteger(L, tournament_id);
-                if (lua_pcall(L, 2, 1, 0) != LUA_OK) {
-                    const char *err = luaL_checkstring(L, -1);
-                    logu_("[%d] lua ERROR: %s\n",
-                        GetCurrentThreadId(), err);
-                }
-                else if (lua_isnumber(L, -1)) {
-                    *new_tid = (WORD)luaL_checkint(L, -1);
-                    done = true;
-                }
-                lua_pop(L, 1);
-                LeaveCriticalSection(&_cs);
-                if (done) {
-                    break;
-                }
-            }
+    bool assigned(false);
+    if (m->evt_trophy_check != 0) {
+        EnterCriticalSection(&_cs);
+        lua_pushvalue(m->L, m->evt_trophy_check);
+        lua_xmove(m->L, L, 1);
+        // push params
+        lua_pushvalue(L, 1); // ctx
+        lua_pushinteger(L, tournament_id);
+        if (lua_pcall(L, 2, 1, 0) != LUA_OK) {
+            const char *err = luaL_checkstring(L, -1);
+            logu_("[%d] lua ERROR: %s\n",
+                GetCurrentThreadId(), err);
         }
+        else if (lua_isnumber(L, -1)) {
+            *new_tid = (WORD)luaL_checkint(L, -1);
+            assigned = true;
+        }
+        lua_pop(L, 1);
+        LeaveCriticalSection(&_cs);
     }
-    return done;
+    return assigned;
 }
 
 bool module_set_match_time(module_t *m, DWORD *num_minutes)
@@ -1515,7 +1505,7 @@ WORD sider_trophy_check(MATCH_INFO_STRUCT* mi)
         for (i = _modules.begin(); i != _modules.end(); i++) {
             module_t *m = *i;
             WORD new_tid = tid;
-            if (module_trophy_rewrite(tid, &new_tid)) {
+            if (module_trophy_rewrite(m, tid, &new_tid)) {
                 tid = new_tid;
                 break;
             }

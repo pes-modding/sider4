@@ -42,8 +42,8 @@ function m.trophy_rewrite(ctx, tournament_id)
         local tid, relpath = unpack(entry)
         if tid and relpath then
             tcontent = content_root .. "\\" .. relpath .. "\\"
-            log(string.format("This tournament is: %s", tournament_id))
-            log(string.format("Using tournament %d for entrace scenes. Content from: %s", tid, tcontent))
+            log(string.format("This tournament is: %d. Remapping cup scenes to: %d", tournament_id, tid))
+            log(string.format("Using content from: %s", tcontent))
             return tid
         end
     end
