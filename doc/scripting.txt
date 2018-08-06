@@ -1,7 +1,7 @@
 Sider 4 Lua Module Programmers Guide
 ====================================
-For sider.dll version: 4.1.1
-August 1, 2018
+For sider.dll version: 4.1.2
+August 6, 2018
 
 
 
@@ -104,7 +104,7 @@ of the game. As more scripts/modules are created by the community
 the context object will probably also change, and include more and more
 information about the game.
 
-As of 4.1.1 release, this is what the context object has:
+As of 4.1.2 release, this is what the context object has:
 
 ctx.home_team  - id of the home team of the current match, after
                  it is selected in the exhibition match, or the next
@@ -115,8 +115,8 @@ ctx.away_team  - id of the away team of the current match, after
                  match is determined in the league mode.
 
 ctx.tournament_id  -  numeric id of the current tournament. See
-                      tournaments.txt file for the list ids for some
-                      of the tournaments.
+                      doc/PES2018_tournamentIDs.txt file for the list
+                      of ids for all of the game's tournaments.
 
 ctx.match_id   - some sort of number, which seems to indicate where
                  in the season you currently are. However, the exact
@@ -330,6 +330,19 @@ modules can react in whatever way they want.
 IMPORTANT NOTE: Some events can fire multiple times for the same "action".
 That is normal, it's just how the game works internally. Make sure your
 module logic can handle such situations correctly.
+
+
+-- Event name: "trophy_rewrite"
+Handler function: f(ctx, tournament_id)
+Return value expected: nil or number
+
+This event fires before the game checks if trophy scenes need to be shown
+before (and after) the match. This is a specialized event, and is probably
+not very useful for modules other than "trophy.lua". The "trophy.lua"
+uses to enforce trophy scenes from specific tournaments. This makes it
+possible to have trophy celebrations for tournaments that do not have
+them in the original game content. (See trophy.lua, if you are really
+interested in how this works)
 
 
 

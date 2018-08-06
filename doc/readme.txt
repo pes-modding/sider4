@@ -1,7 +1,7 @@
 Sider 4 for Pro Evolution Soccer 2018
 =====================================
 Copyright (C) 2018 juce
-Version 4.1.1
+Version 4.1.2
 
 
 
@@ -120,7 +120,7 @@ modules must be in "modules" folder inside the sider root directory.
 
 CREDITS:
 --------
-Game research: nesa24, juce
+Game research: nesa24, juce, digitalfoxx
 Programming: juce
 Alpha testing: zlac, nesa24, Chuny, Hawke
 
