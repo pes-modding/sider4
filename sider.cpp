@@ -1120,7 +1120,7 @@ wstring* have_content(char *file_name)
                 m->cache->insert(pair<string,wstring*>(key, res));
                 if (res) {
                     // we have a file: stop and return
-                    _key_cache->put(file_name, res);
+                    if (_config->_key_cache_ttl_sec) _key_cache->put(file_name, res);
                     return res;
                 }
             }
@@ -1414,7 +1414,7 @@ void sider_set_team_id(DWORD *dest, DWORD *team_id_encoded, DWORD offset)
     BYTE *p = (BYTE*)dest - 0x104;
     p = (is_home) ? p : p - 0x520;
     MATCH_INFO_STRUCT *mi = (MATCH_INFO_STRUCT*)p;
-    logu_("mi: %p\n", mi);
+    //logu_("mi: %p\n", mi);
     //logu_("mi->dw0: 0x%x\n", mi->dw0);
     if (!is_home) {
         logu_("tournament_id: %d\n", mi->tournament_id_encoded);
@@ -1602,7 +1602,7 @@ static int sider_context_register(lua_State *L)
         lua_pushstring(L, "second argument must be a function");
         return lua_error(L);
     }
-    if (strcmp(event_key, "trophy_rewrite")==0) {
+    else if (strcmp(event_key, "trophy_rewrite")==0) {
         lua_pushvalue(L, -1);
         lua_xmove(L, _curr_m->L, 1);
         _curr_m->evt_trophy_check = lua_gettop(_curr_m->L);
