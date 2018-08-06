@@ -41,7 +41,7 @@ function m.trophy_rewrite(ctx, tournament_id)
     if entry then
         local tid, relpath = unpack(entry)
         if tid and relpath then
-            tcontent = content_root .. "\\" .. relpath .. "\\"
+            tcontent = "\\" .. relpath .. "\\"
             log(string.format("This tournament is: %d. Remapping cup scenes to: %d", tournament_id, tid))
             log(string.format("Using content from: %s", tcontent))
             return tid
@@ -49,9 +49,15 @@ function m.trophy_rewrite(ctx, tournament_id)
     end
 end
 
+function m.make_key(ctx, filename)
+    if tcontent then
+        return tcontent .. filename
+    end
+end
+
 function m.get_filepath(ctx, filename, key)
     if key and tcontent then
-        return tcontent .. key
+        return content_root .. key
     end
 end
 
@@ -60,6 +66,7 @@ function m.init(ctx)
         content_root = ctx.sider_dir .. content_root
     end
     ctx.register("trophy_rewrite", m.trophy_rewrite)
+    ctx.register("livecpk_make_key", m.make_key)
     ctx.register("livecpk_get_filepath", m.get_filepath)
 end
 
