@@ -56,8 +56,9 @@ function m.make_key(ctx, filename)
 end
 
 function m.get_filepath(ctx, filename, key)
-    -- key is either nil or already contains full filename
-    return key
+    if tcontent then
+        return key
+    end
 end
 
 function m.init(ctx)
