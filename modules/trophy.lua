@@ -1,6 +1,6 @@
 --[[
 ========================
-trophy.lua - version 1.0
+trophy.lua - version 1.1
 ========================
 
 Trophy server module is used to add trophy celebrations
