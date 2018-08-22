@@ -23,7 +23,7 @@ English Premier League trophies for the corresponding tournaments.
 
 --]]
 
-local m = {}
+local m = { version = "1.1" }
 
 local content_root = ".\\content\\trophy-server"
 local tcontent = nil
@@ -68,6 +68,7 @@ function m.init(ctx)
     ctx.register("trophy_rewrite", m.trophy_rewrite)
     ctx.register("livecpk_make_key", m.make_key)
     ctx.register("livecpk_get_filepath", m.get_filepath)
+    log("trophy server: version " .. m.version)
 end
 
 return m
