@@ -1152,7 +1152,7 @@ void sider_get_size(char *filename, struct FILE_INFO *fi)
     }
     DBG(4) logu_("get_size:: tailname: %s\n", fname);
 
-    wstring *fn;
+    wstring *fn(NULL);
     if (_config->_lua_enabled) do_rewrite(fname);
     fn = (_config->_lua_enabled) ? have_content(fname) : NULL;
     fn = (fn) ? fn : have_live_file(fname);
@@ -1204,7 +1204,7 @@ BOOL sider_read_file(
         BYTE* p = (BYTE*)rs;
         FILE_LOAD_INFO *fli = *((FILE_LOAD_INFO **)(p - 0x18));
 
-        wstring *fn;
+        wstring *fn(NULL);
         fn = (_config->_lua_enabled) ? have_content(rs->filename) : NULL;
         fn = (fn) ? fn : have_live_file(rs->filename);
         if (fn != NULL) {
@@ -1294,7 +1294,7 @@ void sider_mem_copy(BYTE *dst, LONGLONG dst_len, BYTE *src, LONGLONG src_len, st
         BYTE* p = (BYTE*)rs;
         FILE_LOAD_INFO *fli = *((FILE_LOAD_INFO **)(p - 0x18));
 
-        wstring *fn;
+        wstring *fn(NULL);
         fn = (_config->_lua_enabled) ? have_content(rs->filename) : NULL;
         fn = (fn) ? fn : have_live_file(rs->filename);
         if (fn != NULL) {
@@ -1351,6 +1351,15 @@ void sider_mem_copy(BYTE *dst, LONGLONG dst_len, BYTE *src, LONGLONG src_len, st
 
 void sider_lookup_file(LONGLONG p1, LONGLONG p2, char *filename)
 {
+    if (filename) {
+        DBG(8) logu_("lookup_file:: looking for: %s\n", filename);
+    }
+    else {
+        DBG(8) logu_("lookup_file:: looking for NULL\n");
+        // nothing to do here with a null pointer
+        return;
+    }
+
     // quick check if we already modified this path
     size_t len = strlen(filename);
     char *p = filename + len + 1;
@@ -1358,9 +1367,8 @@ void sider_lookup_file(LONGLONG p1, LONGLONG p2, char *filename)
         // already did this.
         return;
     }
-    //DBG(8) logu_("lookup_file:: looking for: %s\n", filename);
 
-    wstring *fn;
+    wstring *fn(NULL);
     if (_config->_lua_enabled) {
         if (do_rewrite(filename)) {
             len = strlen(filename);
@@ -2170,7 +2178,7 @@ INT APIENTRY DllMain(HMODULE hDLL, DWORD Reason, LPVOID Reserved)
 
                 wstring version;
                 get_module_version(hDLL, version);
-                log_(L"============================\n");
+                open_log_(L"============================\n");
                 log_(L"Sider DLL: version %s\n", version.c_str());
                 log_(L"Filename match: %s\n", match->c_str());
 
@@ -2207,6 +2215,8 @@ INT APIENTRY DllMain(HMODULE hDLL, DWORD Reason, LPVOID Reserved)
                         log_(L"Posted message for sider.exe to quit\n");
                     }
                 }
+
+                close_log_();
             }
             break;
 
