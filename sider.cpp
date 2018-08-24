@@ -1374,7 +1374,7 @@ void sider_lookup_file(LONGLONG p1, LONGLONG p2, char *filename)
 
         // trick: pick a filename that we know exists
         // put our filename after it, separated by MAGIC marker
-        char temp[0x100];
+        char temp[0x200];
         memcpy(temp, filename, len+1);
         memcpy(filename, _file_to_lookup, _file_to_lookup_size);
         memcpy(filename + _file_to_lookup_size, temp, len+1);
@@ -1383,6 +1383,7 @@ void sider_lookup_file(LONGLONG p1, LONGLONG p2, char *filename)
         // not found. But still mark it with magic
         // so that we do not search again
         *(DWORD*)p = MAGIC;
+        *(p+4) = '\0';
     }
 }
 
