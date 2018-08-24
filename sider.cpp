@@ -1384,6 +1384,7 @@ void sider_lookup_file(LONGLONG p1, LONGLONG p2, char *filename)
         // so that we do not search again
         *(DWORD*)p = MAGIC;
         *(p+4) = '\0';
+        *(p+5) = '\0';
     }
 }
 
