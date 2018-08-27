@@ -1572,7 +1572,7 @@ void hook_call(BYTE *loc, BYTE *p, size_t nops) {
     if (VirtualProtect(loc, 16, newProtection, &protection)) {
         memcpy(loc, "\x48\xb8", 2);
         memcpy(loc+2, &p, sizeof(BYTE*));  // mov rax,<target_addr>
-        memcpy(loc+10, "\xff\xd0", 2);      // call rax
+        memcpy(loc+10, "\xff\xd0", 2);     // call rax
         if (nops) {
             memset(loc+12, '\x90', nops);  // nop ;one of more nops for padding
         }
@@ -1580,17 +1580,34 @@ void hook_call(BYTE *loc, BYTE *p, size_t nops) {
     }
 }
 
-void hook_call_with_tail(BYTE *loc, BYTE *p, BYTE *tail, size_t tail_size) {
+void hook_call_rcx(BYTE *loc, BYTE *p, size_t nops) {
     if (!loc) {
         return;
     }
     DWORD protection = 0;
     DWORD newProtection = PAGE_EXECUTE_READWRITE;
     if (VirtualProtect(loc, 16, newProtection, &protection)) {
+        memcpy(loc, "\x48\xb9", 2);
+        memcpy(loc+2, &p, sizeof(BYTE*));  // mov rcx,<target_addr>
+        memcpy(loc+10, "\xff\xd1", 2);     // call rcx
+        if (nops) {
+            memset(loc+12, '\x90', nops);  // nop ;one of more nops for padding
+        }
+        log_(L"hook_call_rcx: hooked at %p (target: %p)\n", loc, p);
+    }
+}
+
+void hook_call_with_tail(BYTE *loc, BYTE *p, BYTE *tail, size_t tail_size) {
+    if (!loc) {
+        return;
+    }
+    DWORD protection = 0 ;
+    DWORD newProtection = PAGE_EXECUTE_READWRITE;
+    if (VirtualProtect(loc, 16, newProtection, &protection)) {
         memcpy(loc, "\x48\xb8", 2);
         memcpy(loc+2, &p, sizeof(BYTE*));  // mov rax,<target_addr>
-        memcpy(loc+10, "\xff\xd0", 2);      // call rax
-        memcpy(loc+12, tail, tail_size);  // tail code
+        memcpy(loc+10, "\xff\xd0", 2);     // call rax
+        memcpy(loc+12, tail, tail_size);   // tail code
         log_(L"hook_call_with_tail: hooked at %p (target: %p)\n", loc, p);
     }
 }
@@ -1806,7 +1823,8 @@ static void push_env_table(lua_State *L, const wchar_t *script_name)
     lua_settable(L, -3);
 
     // memory lib
-    init_memlib(L, "memory");
+    lua_pushvalue(L, 2);
+    lua_setfield(L, -2, "memory");
 
     /*
     // gameplay lib
@@ -1843,9 +1861,8 @@ static void push_env_table(lua_State *L, const wchar_t *script_name)
 void init_lua_support()
 {
     if (_config->_lua_enabled) {
-        log_(L"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
-        log_(L"Initilizing Lua module system:\n");
-        log_(L"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+        log_(L"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+        log_(L"Initializing Lua module system:\n");
 
         // load and initialize lua modules
         L = luaL_newstate();
@@ -1854,10 +1871,15 @@ void init_lua_support()
         // prepare context table
         push_context_table(L);
 
+        // memory library
+        init_memlib(L);
+
         // load registered modules
         for (list<wstring>::iterator it = _config->_module_names.begin();
                 it != _config->_module_names.end();
                 it++) {
+            log_(L"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+
             // Use Win32 API to read the script into a buffer:
             // we do not want any nasty surprises with filename encodings
             wstring script_file(sider_dir);
@@ -1961,16 +1983,15 @@ void init_lua_support()
             }
             else {
                 logu_("OK: Lua module initialized: %s\n", mfile.c_str());
-                logu_("gettop: %d\n", lua_gettop(L));
 
                 // add to list of loaded modules
                 _modules.push_back(m);
             }
         }
-        log_(L"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+        log_(L"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
         log_(L"Lua module system initialized.\n");
         log_(L"Active modules: %d\n", _modules.size());
-        log_(L"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+        log_(L"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
     }
 }
 
@@ -2123,7 +2144,7 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
             hook_call(_config->_hp_at_get_size, (BYTE*)sider_get_size_hk, 0);
             hook_call(_config->_hp_at_extend_cpk, (BYTE*)sider_extend_cpk_hk, 1);
             hook_call(_config->_hp_at_mem_copy, (BYTE*)sider_mem_copy_hk, 0);
-            hook_call(_config->_hp_at_lookup_file, (BYTE*)sider_lookup_file_hk, 3);
+            hook_call_rcx(_config->_hp_at_lookup_file, (BYTE*)sider_lookup_file_hk, 3);
         }
 
         if (_config->_lua_enabled) {
