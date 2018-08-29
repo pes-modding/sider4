@@ -351,6 +351,7 @@ public:
     list<wstring> _module_names;
     bool _close_sider_on_exit;
     bool _start_minimized;
+    bool _free_side_select;
     BYTE *_hp_at_read_file;
     BYTE *_hp_at_get_size;
     BYTE *_hp_at_extend_cpk;
@@ -360,6 +361,10 @@ public:
     BYTE *_hp_at_set_settings;
     BYTE *_hp_at_trophy_check;
     BYTE *_hp_at_context_reset;
+    BYTE *_hp_at_sider_1;
+    BYTE *_hp_at_sider_2;
+    BYTE *_hp_at_sider_3;
+    BYTE *_hp_at_sider_4;
 
     ~config_t() {}
     config_t(const wstring& section_name, const wchar_t* config_ini) :
@@ -371,6 +376,7 @@ public:
                  _luajit_extensions_enabled(false),
                  _close_sider_on_exit(false),
                  _start_minimized(false),
+                 _free_side_select(false),
                  _key_cache_ttl_sec(10),
                  _hp_at_read_file(NULL),
                  _hp_at_get_size(NULL),
@@ -380,7 +386,11 @@ public:
                  _hp_at_set_team_id(NULL),
                  _hp_at_set_settings(NULL),
                  _hp_at_trophy_check(NULL),
-                 _hp_at_context_reset(NULL)
+                 _hp_at_context_reset(NULL),
+                 _hp_at_sider_1(NULL),
+                 _hp_at_sider_2(NULL),
+                 _hp_at_sider_3(NULL),
+                 _hp_at_sider_4(NULL)
     {
         wchar_t settings[32767];
         RtlZeroMemory(settings, sizeof(settings));
@@ -443,6 +453,10 @@ public:
 
         _start_minimized = GetPrivateProfileInt(_section_name.c_str(),
             L"start.minimized", _start_minimized,
+            config_ini);
+
+        _free_side_select = GetPrivateProfileInt(_section_name.c_str(),
+            L"free.side.select", _free_side_select,
             config_ini);
 
         _livecpk_enabled = GetPrivateProfileInt(_section_name.c_str(),
@@ -2045,6 +2059,7 @@ DWORD install_func(LPVOID thread_param) {
     //log_(L"address-cache.enabled = %d\n", (int)(!_config->_ac_off));
     log_(L"close.on.exit = %d\n", _config->_close_sider_on_exit);
     log_(L"start.minimized = %d\n", _config->_start_minimized);
+    log_(L"free.side.select = %d\n", _config->_free_side_select);
     log_(L"key-cache.ttl-sec = %d\n", _config->_key_cache_ttl_sec);
 
     for (list<wstring>::iterator it = _config->_cpk_roots.begin();
@@ -2098,7 +2113,7 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
         base, base + h->Misc.VirtualSize, h->Misc.VirtualSize);
     bool result(false);
 
-#define NUM_PATTERNS 9
+#define NUM_PATTERNS 13
     BYTE *frag[NUM_PATTERNS];
     frag[0] = lcpk_pattern_at_read_file;
     frag[1] = lcpk_pattern_at_get_size;
@@ -2109,6 +2124,10 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
     frag[6] = pattern_set_settings;
     frag[7] = pattern_trophy_check;
     frag[8] = pattern_context_reset;
+    frag[9] = pattern_sider_1;
+    frag[10] = pattern_sider_2;
+    frag[11] = pattern_sider_3;
+    frag[12] = pattern_sider_4;
     size_t frag_len[NUM_PATTERNS];
     frag_len[0] = sizeof(lcpk_pattern_at_read_file)-1;
     frag_len[1] = sizeof(lcpk_pattern_at_get_size)-1;
@@ -2119,6 +2138,10 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
     frag_len[6] = sizeof(pattern_set_settings)-1;
     frag_len[7] = sizeof(pattern_trophy_check)-1;
     frag_len[8] = sizeof(pattern_context_reset)-1;
+    frag_len[9] = sizeof(pattern_sider_1)-1;
+    frag_len[10] = sizeof(pattern_sider_2)-1;
+    frag_len[11] = sizeof(pattern_sider_3)-1;
+    frag_len[12] = sizeof(pattern_sider_4)-1;
     int offs[NUM_PATTERNS];
     offs[0] = lcpk_offs_at_read_file;
     offs[1] = lcpk_offs_at_get_size;
@@ -2129,6 +2152,10 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
     offs[6] = offs_set_settings;
     offs[7] = offs_trophy_check;
     offs[8] = offs_context_reset;
+    offs[9] = offs_sider_1;
+    offs[10] = offs_sider_2;
+    offs[11] = offs_sider_3;
+    offs[12] = offs_sider_4;
     BYTE **addrs[NUM_PATTERNS];
     addrs[0] = &_config->_hp_at_read_file;
     addrs[1] = &_config->_hp_at_get_size;
@@ -2139,6 +2166,10 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
     addrs[6] = &_config->_hp_at_set_settings;
     addrs[7] = &_config->_hp_at_trophy_check;
     addrs[8] = &_config->_hp_at_context_reset;
+    addrs[9] = &_config->_hp_at_sider_1;
+    addrs[10] = &_config->_hp_at_sider_2;
+    addrs[11] = &_config->_hp_at_sider_3;
+    addrs[12] = &_config->_hp_at_sider_4;
 
     for (int j=0; j<NUM_PATTERNS; j++) {
         BYTE *p = find_code_frag(base, h->Misc.VirtualSize,
@@ -2181,6 +2212,13 @@ bool _install_func(IMAGE_SECTION_HEADER *h) {
                 (BYTE*)pattern_trophy_check_head, sizeof(pattern_trophy_check_head)-1,
                 (BYTE*)pattern_trophy_check_tail, sizeof(pattern_trophy_check_tail)-1);
             hook_call(_config->_hp_at_context_reset, (BYTE*)sider_context_reset_hk, 6);
+        }
+
+        if (_config->_free_side_select) {
+            patch_at_location(_config->_hp_at_sider_1, patch_sider_1, sizeof(patch_sider_1)-1);
+            patch_at_location(_config->_hp_at_sider_2, patch_sider_2, sizeof(patch_sider_2)-1);
+            patch_at_location(_config->_hp_at_sider_3, patch_sider_3, sizeof(patch_sider_3)-1);
+            patch_at_location(_config->_hp_at_sider_4, patch_sider_4, sizeof(patch_sider_4)-1);
         }
     }
 

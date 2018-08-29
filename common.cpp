@@ -135,3 +135,19 @@ BYTE* find_code_frag(BYTE *base, LONGLONG max_offset, BYTE *frag, size_t frag_le
     return NULL;
 }
 
+void patch_at_location(BYTE *addr, void *patch, size_t patch_len)
+{
+    if (addr) {
+        BYTE* bptr = addr;
+        DWORD protection = 0;
+        DWORD newProtection = PAGE_EXECUTE_READWRITE;
+        if (VirtualProtect(bptr, 64, newProtection, &protection)) {
+            memcpy(addr, patch, patch_len);
+            log_(L"Patch (size=%d) installed at (%p)\n", patch_len, addr);
+        }
+        else {
+            log_(L"Problem with VirtualProtect at: %p\n", addr);
+        }
+    }
+}
+

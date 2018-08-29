@@ -127,4 +127,38 @@ static BYTE pattern_context_reset[19] =
     "\x48\xc7\x83\xac\x59\x01\x00\xff\xff\xff\xff";
 static int offs_context_reset = 0;
 
+// controller restrictions ("sider")
+
+static BYTE pattern_sider_1[16] =
+    "\x8b\x75\x58"
+    "\x44\x0f\xb6\x65\x68"
+    "\x4c\x8b\x7d\x48"
+    "\xc6\x03\x04";
+static int offs_sider_1 = 14;
+static BYTE patch_sider_1[2] = "\0";
+
+static BYTE pattern_sider_2[16] =
+    "\x8b\x75\x58"
+    "\x4c\x8b\x7d\x48"
+    "\x44\x0f\xb6\x65\x68"
+    "\xc6\x03\x02";
+static int offs_sider_2 = 14;
+static BYTE patch_sider_2[2] = "\0";
+
+static BYTE pattern_sider_3[20] =
+    "\x83\xbf\x50\x04\x00\x00\x02"
+    "\xb8\x04\x00\x00\x00"
+    "\x44\x0f\x45\xf8"
+    "\x44\x88\x3b";
+static int offs_sider_3 = 8;
+static BYTE patch_sider_3[2] = "\0";
+
+static BYTE pattern_sider_4[10] =
+    "\xf7\xd8"
+    "\x1a\xc9"
+    "\x80\xe1\x02"
+    "\x88\x0b";
+static int offs_sider_4 = 4;
+static BYTE patch_sider_4[4] = "\x32\xc9\x90";  // xor cl,cl
+
 #endif
