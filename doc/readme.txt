@@ -1,7 +1,7 @@
 Sider 4 for Pro Evolution Soccer 2018
 =====================================
 Copyright (C) 2018 juce
-Version 4.1.2
+Version 4.1.3
 
 
 
@@ -122,5 +122,5 @@ CREDITS:
 --------
 Game research: nesa24, juce, digitalfoxx
 Programming: juce
-Alpha testing: zlac, nesa24, Chuny, Hawke
+Testing and troubleshooting: zlac, nesa24, Chuny, Hawke, santric, Dorumagesu116
 

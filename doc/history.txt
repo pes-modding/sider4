@@ -2,6 +2,15 @@ Sider 4 Release History
 =======================
 
 
+August 28, 2018
+v4.1.3
+- fix for LiveCPK internal logic: sometimes the game would
+  hang early on during startup (for example with PTE Patch)
+  and not go past the black screen. This is fixed now.
+- fix for trophy remapping: now works with leagues too.
+  (previous version only supported cup tournaments)
+
+
 August 6, 2018
 v4.1.2
 - new feature: trophy.lua - for cup celebration scenes

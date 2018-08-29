@@ -1,7 +1,7 @@
 Sider 4 Lua Module Programmers Guide
 ====================================
-For sider.dll version: 4.1.2
-August 6, 2018
+For sider.dll version: 4.1.3
+August 28, 2018
 
 
 
@@ -104,7 +104,7 @@ of the game. As more scripts/modules are created by the community
 the context object will probably also change, and include more and more
 information about the game.
 
-As of 4.1.2 release, this is what the context object has:
+As of 4.1.3 release, this is what the context object has:
 
 ctx.home_team  - id of the home team of the current match, after
                  it is selected in the exhibition match, or the next
@@ -327,11 +327,6 @@ to change anything, but it does provide the context object so that the
 modules can react in whatever way they want.
 
 
-IMPORTANT NOTE: Some events can fire multiple times for the same "action".
-That is normal, it's just how the game works internally. Make sure your
-module logic can handle such situations correctly.
-
-
 -- Event name: "trophy_rewrite"
 Handler function: f(ctx, tournament_id)
 Return value expected: nil or number
@@ -343,6 +338,11 @@ uses to enforce trophy scenes from specific tournaments. This makes it
 possible to have trophy celebrations for tournaments that do not have
 them in the original game content. (See trophy.lua, if you are really
 interested in how this works)
+
+
+IMPORTANT NOTE: Some events can fire multiple times for the same "action".
+That is normal, it's just how the game works internally. Make sure your
+module logic can handle such situations correctly.
 
 
 
