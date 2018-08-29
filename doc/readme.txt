@@ -137,5 +137,5 @@ CREDITS:
 --------
 Game research: nesa24, juce, digitalfoxx
 Programming: juce
-Testing and troubleshooting: zlac, nesa24, Chuny, Hawke, santric, Dorumagesu116
+Testing and troubleshooting: zlac, nesa24, Chuny, Hawke, saintric, Dorumagesu116
 
