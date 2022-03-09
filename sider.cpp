@@ -13,6 +13,7 @@
 #include "common.h"
 #include "patterns.h"
 #include "memlib.h"
+#include "audio.h"
 
 #include "lua.hpp"
 #include "lauxlib.h"
@@ -33,6 +34,7 @@
 #define KNOWN_FILENAME "Fox\\Scripts\\Gr\\init.lua"
 char _file_to_lookup[0x80];
 size_t _file_to_lookup_size = 0;
+int _audio_lib_index = 0;
 
 using namespace std;
 
@@ -1040,6 +1042,19 @@ void module_make_key(module_t *m, const char *file_name, char *key, size_t key_m
     }
 }
 
+void module_call_callback_with_context(lua_State *L, lua_State *from_L, int callback_index) {
+    EnterCriticalSection(&_cs);
+    lua_pushvalue(from_L, callback_index);
+    lua_xmove(from_L, L, 1);
+    lua_pushvalue(L, 1); // ctx
+    if (lua_pcall(L, 1, 0, 0) != LUA_OK) {
+        const char *err = luaL_checkstring(L, -1);
+        logu_("[%d] lua ERROR from module_call_callback_with_context: %s\n",
+            GetCurrentThreadId(), err);
+    }
+    LeaveCriticalSection(&_cs);
+}
+
 wstring *module_get_filepath(module_t *m, const char *file_name, char *key)
 {
     wstring *res = NULL;
@@ -1861,6 +1876,10 @@ static void push_env_table(lua_State *L, const wchar_t *script_name)
     lua_pushvalue(L, 2);
     lua_setfield(L, -2, "memory");
 
+    // audio lib
+    lua_pushvalue(L, _audio_lib_index);
+    lua_setfield(L, -2, "audio");
+
     /*
     // gameplay lib
     init_gameplay_lib(L);
@@ -1908,6 +1927,10 @@ void init_lua_support()
 
         // memory library
         init_memlib(L);
+
+        // audio library
+        init_audio_lib(L);
+        _audio_lib_index = lua_gettop(L);
 
         // load registered modules
         for (list<wstring>::iterator it = _config->_module_names.begin();
@@ -2266,6 +2289,9 @@ INT APIENTRY DllMain(HMODULE hDLL, DWORD Reason, LPVOID Reserved)
 
                 install_func(NULL);
 
+                // initialize audio lib
+                audio_init();
+                
                 delete match;
                 return TRUE;
             }
