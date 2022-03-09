@@ -35,6 +35,7 @@ sider.res: sider.rc
 sider_main.res: sider_main.rc sider.ico
 	$(RC) -r -fo sider_main.res sider_main.rc
 
+audio.obj: audio.cpp audio.h sider.h common.h
 common.obj: common.cpp common.h
 imageutil.obj: imageutil.cpp imageutil.h
 version.obj: version.cpp
