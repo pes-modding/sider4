@@ -26,6 +26,8 @@ LUALIB=lua51.lib
 LUADLL=lua51.dll
 LUAJIT=luajit.exe
 
+MAINC=/I soft\miniaudio
+
 all: sider.exe sider.dll
 
 sider.res: sider.rc
@@ -48,9 +50,9 @@ $(LUALIBPATH)\$(LUALIB):
 util.obj: util.asm
     ml64 /c util.asm
 
-sider.obj: sider.cpp sider.h patterns.h common.h imageutil.h
-sider.dll: sider.obj util.obj imageutil.obj version.obj common.obj memlib.obj sider.res $(LUALIBPATH)\$(LUALIB)
-	$(LINK) $(LFLAGS) /out:sider.dll /DLL sider.obj util.obj imageutil.obj version.obj common.obj memlib.obj sider.res /LIBPATH:$(LUALIBPATH) $(LIBS) $(LUALIB) /LIBPATH:"$(LIB)"
+sider.obj: sider.cpp sider.h patterns.h common.h imageutil.h audio.h
+sider.dll: sider.obj util.obj imageutil.obj version.obj common.obj memlib.obj audio.obj sider.res $(LUALIBPATH)\$(LUALIB)
+	$(LINK) $(LFLAGS) /out:sider.dll /DLL sider.obj util.obj imageutil.obj version.obj common.obj memlib.obj audio.obj sider.res /LIBPATH:$(LUALIBPATH) $(LIBS) $(LUALIB) /LIBPATH:"$(LIB)"
 
 sider.exe: main.obj sider.dll sider_main.res $(LUADLL)
 	$(LINK) $(LFLAGS) /out:sider.exe main.obj sider_main.res $(LIBS) sider.lib /LIBPATH:"$(LIB)"
@@ -60,7 +62,7 @@ $(LUADLL): $(LUALIBPATH)\$(LUALIB)
 	copy $(LUALIBPATH)\$(LUAJIT) .
 
 .cpp.obj:
-	$(CC) $(CFLAGS) -c $(INC) $(LUAINC) $<
+	$(CC) $(CFLAGS) -c $(INC) $(LUAINC) $(MAINC) $<
 
 clean:
 	del *.obj *.dll *.exp *.res *.lib *.exe *~ memlib_lua.h
