@@ -1,5 +1,9 @@
 Sider 4 Release History
 =======================
+March 15, 2022
+v4.2.0
+- backporting sider-7 to sider-4
+- fix for stack alignment for set_settings call
 
 
 August 28, 2018

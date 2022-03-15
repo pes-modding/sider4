@@ -88,7 +88,12 @@ static BYTE pattern_set_settings[18] =
     "\x88\x81\x8b\x00\x00\x00"
     "\x48\x8b\xc1"
     "\xc3";
+
 static int offs_set_settings = 0;
+static BYTE pattern_set_settings_head[2] =
+    "\x50";  // push rax
+static BYTE pattern_set_settings_tail[2] =
+    "\x58";
 
 /*
 0000000141C5A870 | 0F B7 D0                           | movzx edx,ax                            | check tournament_id for trophy
@@ -160,5 +165,62 @@ static BYTE pattern_sider_4[10] =
     "\x88\x0b";
 static int offs_sider_4 = 4;
 static BYTE patch_sider_4[4] = "\x32\xc9\x90";  // xor cl,cl
+
+/*
+static BYTE pattern_dxgi[23] =
+    "\x48\x33\xc4"
+    "\x48\x89\x84\x24\xa0\x00\x00\x00"
+    "\x4c\x8b\xf2"
+    "\x48\x8b\xf1"
+    "\x48\x8d\x54\x24\x30";
+
+static int offs_dxgi = 0x1d;
+
+
+00007FFF42B2263E | 48:33C4                  | xor rax,rsp                             |
+00007FFF42B22641 | 48:898424 E0010000       | mov qword ptr ss:[rsp+1E0],rax          |
+00007FFF42B22649 | 66:0F6F05 EF452200       | movdqa xmm0,xmmword ptr ds:[7FFF42D46C4 |
+00007FFF42B22651 | 48:8BDA                  | mov rbx,rdx                             |
+*/
+
+static BYTE pattern_dxgi[23] =
+    "\x48\x33\xc4"
+    "\x48\x89\x84\x24\xa0\x00\x00\x00"
+    "\x4c\x8b\xf2"
+    "\x48\x8b\xf1"
+    "\x48\x8d\x54\x24\x30";
+
+static int offs_dxgi = 0x1d;
+
+static BYTE pattern_ball_name[11] =
+    "\x80\x79\x04\x00"
+    "\x48\x8d\x51\x04"
+    "\x75\x12";
+static int offs_ball_name = 28;
+static BYTE pattern_ball_name_head[3] = "\x50\x50";
+static BYTE pattern_ball_name_tail[4] = "\x58\x58\x90";
+
+static BYTE pattern_stadium_name[11] =
+    "\x80\x79\x08\x00"
+    "\x48\x8d\x51\x08"
+    "\x75\x12";
+static int offs_stadium_name = 28;
+static BYTE pattern_stadium_name_head[3] = "\x50\x50";
+static BYTE pattern_stadium_name_tail[4] = "\x58\x58\x90";
+
+static BYTE pattern_set_stadium_choice[6] =
+    "\xc6\x44\x24\x20\x01";
+static int offs_set_stadium_choice = 11;
+
+/*
+0000000140497861 | E8 70B5EB00              | call <JMP.&XInputGetState>              |
+0000000140497866 | 85C0                     | test eax,eax                            |
+*/
+static BYTE pattern_xinput[12] =
+    "\xff\x50\x10"
+    "\x8b\x4b\x0c"
+    "\x48\x8d\x55\xb8"
+    "\xe8";
+static int offs_xinput = 11;
 
 #endif

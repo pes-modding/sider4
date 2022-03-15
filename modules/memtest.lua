@@ -27,11 +27,11 @@ function init(ctx)
     end
 
     local s = memory.read(0x14000b00eULL, 12)
-    log(string.format("%s bytes at address %s: %s", #s, memory.tohexstring(0x14000b00eULL), hex(s)))
+    log(string.format("%s bytes at address %s: %s", #s, hex(0x14000b00eULL), hex(s)))
     local n1 = memory.unpack("i64", s)
     local n2 = memory.unpack("u64", s)
-    log(string.format("first 8 bytes as signed int: %s (%s)", memory.tohexstring(n1), n1))
-    log(string.format("first 8 bytes as unsigned int: %s (%s)", memory.tohexstring(n2), n2))
+    log(string.format("first 8 bytes as signed int: %s (%s)", hex(n1), n1))
+    log(string.format("first 8 bytes as unsigned int: %s (%s)", hex(n2), n2))
 end
 
 return { init = init }

@@ -12,17 +12,17 @@
 
 #include "audio.h"
 #include "common.h"
+#include "config.h"
 #include "sider.h"
 #include "utf8.h"
 
 #include <deque>
 
-//extern config_t *_config;
+extern config_t*_config;
 extern void module_call_callback_with_context(lua_State *L, lua_State *from_L, int callback_index);
 extern CRITICAL_SECTION _cs;
 
-//#define DBG(n) if (_config->_debug & n)
-#define DBG(n) if (0)
+#define DBG(n) if (_config->_debug & n)
 
 struct sound_t {
     const char *filename;
@@ -180,7 +180,7 @@ void audio_init()
     if (_sound_tracker == NULL) {
         _sound_tracker = new sound_tracker_t(&_cs);
         DWORD thread_id;
-        _sound_manager_handle = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)sound_manager_thread, _sound_tracker, 0, &thread_id);
+        _sound_manager_handle = CreateThread(NULL, 0, sound_manager_thread, _sound_tracker, 0, &thread_id);
         SetThreadPriority(_sound_manager_handle, THREAD_PRIORITY_LOWEST);
     }
 }
@@ -198,7 +198,7 @@ sound_t* audio_new_sound(const char *filename, sound_t *sound)
         sound = (sound_t*)malloc(sizeof(sound_t));
     }
 
-    wchar_t *wfname = Utf8::utf8ToUnicode((BYTE*)filename);
+    wchar_t *wfname = Utf8::utf8ToUnicode(filename);
     if (!wfname) {
         logu_("utf8-to-wide conversion failed for: %s\n", filename);
         Utf8::free(wfname);
