@@ -1,6 +1,6 @@
 # Introduction
 
-Sider 4 is a companion program for Pro Evolution Soccer 2018.
+Sider 7 is a companion program for Pro Evolution Soccer 2021.
 
 # How to build
 

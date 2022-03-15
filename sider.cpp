@@ -1569,13 +1569,17 @@ struct module_t {
     int evt_lcpk_make_key;
     int evt_lcpk_get_filepath;
     int evt_lcpk_rewrite;
+    
     int evt_lcpk_read;
+    /*
     int evt_lcpk_data_ready;
+    */
     int evt_set_teams;
+    /*
     int evt_set_kits;
     int evt_set_home_team_for_kits;
     int evt_set_away_team_for_kits;
-    /*
+    
     int evt_set_tid;
     */
     int evt_set_match_time;
@@ -2773,7 +2777,7 @@ void module_read(module_t *m, const char *file_name, void *data, LONGLONG len, F
     }
     LeaveCriticalSection(&_cs);
 }
-
+/*
 void module_data_ready(module_t *m, const char *file_name, void *data, LONGLONG len, LONGLONG total_size, LONGLONG offset, const char *cpk_name)
 {
     EnterCriticalSection(&_cs);
@@ -2794,7 +2798,7 @@ void module_data_ready(module_t *m, const char *file_name, void *data, LONGLONG 
     }
     LeaveCriticalSection(&_cs);
 }
-
+*/
 void module_make_key(module_t *m, const char *file_name, char *key, size_t key_maxsize)
 {
     key[0] = '\0';
@@ -4742,8 +4746,8 @@ void sider_set_team_id(DWORD *dest, TEAM_INFO_STRUCT *team_info, DWORD offset)
 
 void sider_set_settings(STAD_STRUCT *dest_ss, STAD_STRUCT *src_ss)
 {
-    MATCH_INFO_STRUCT *mi = (MATCH_INFO_STRUCT*)((BYTE*)dest_ss - 0x70);
-    bool ok = mi && (mi->db0x17 == 0x17 || mi->db0x17 == 0x12 || mi->db0x17 == 0x15);
+    MATCH_INFO_STRUCT *mi = (MATCH_INFO_STRUCT*)((BYTE*)dest_ss - 0x68);
+    bool ok = mi && (mi->db0x03 == 0x03) && (mi->db0x17 == 0x17 || mi->db0x17 == 0x12);
     if (!ok) {
         // safety check
         DBG(16) logu_("%02x\n", mi->db0x17);
@@ -4936,7 +4940,7 @@ void sider_set_stadium_choice(MATCH_INFO_STRUCT *mi, WORD stadium_choice)
         logu_("set_stadium_choice: %d\n", mi->stadium_choice);
     }
 }
-
+/*
 DWORD sider_data_ready(FILE_LOAD_INFO *fli)
 {
     if (!fli) {
@@ -4969,7 +4973,7 @@ DWORD sider_data_ready(FILE_LOAD_INFO *fli)
 
     return 0;
 }
-/*
+
 void sider_kit_status(KIT_STATUS_INFO *ksi, TASK_UNIFORM_IMPL *tu_impl)
 {
     _ksi = ksi;
@@ -5796,6 +5800,7 @@ static int sider_context_register(lua_State *L)
         _rewrite_count++;
         logu_("Registered for \"%s\" event\n", event_key);
     }
+    /*
     else if (strcmp(event_key, "livecpk_read")==0) {
         lua_pushvalue(L, -1);
         lua_xmove(L, _curr_m->L, 1);
@@ -5808,12 +5813,14 @@ static int sider_context_register(lua_State *L)
         _curr_m->evt_lcpk_data_ready = lua_gettop(_curr_m->L);
         logu_("Registered for \"%s\" event\n", event_key);
     }
+    */
     else if (strcmp(event_key, "set_teams")==0) {
         lua_pushvalue(L, -1);
         lua_xmove(L, _curr_m->L, 1);
         _curr_m->evt_set_teams = lua_gettop(_curr_m->L);
         logu_("Registered for \"%s\" event\n", event_key);
     }
+    /*
     else if (strcmp(event_key, "set_kits")==0) {
         lua_pushvalue(L, -1);
         lua_xmove(L, _curr_m->L, 1);
@@ -5832,7 +5839,7 @@ static int sider_context_register(lua_State *L)
         _curr_m->evt_set_away_team_for_kits = lua_gettop(_curr_m->L);
         logu_("Registered for \"%s\" event\n", event_key);
     }
-      /*
+      
     else if (strcmp(event_key, "set_tournament_id")==0) {
         lua_pushvalue(L, -1);
         lua_xmove(L, _curr_m->L, 1);
@@ -5864,12 +5871,14 @@ static int sider_context_register(lua_State *L)
         _curr_m->evt_set_conditions = lua_gettop(_curr_m->L);
         logu_("Registered for \"%s\" event\n", event_key);
     }
+    /*
     else if (strcmp(event_key, "set_match_settings")==0) {
         lua_pushvalue(L, -1);
         lua_xmove(L, _curr_m->L, 1);
         _curr_m->evt_set_match_settings = lua_gettop(_curr_m->L);
         logu_("Registered for \"%s\" event\n", event_key);
     }
+    */
     else if (strcmp(event_key, "after_set_conditions")==0) {
         lua_pushvalue(L, -1);
         lua_xmove(L, _curr_m->L, 1);
