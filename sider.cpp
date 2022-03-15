@@ -1569,7 +1569,6 @@ struct module_t {
     int evt_lcpk_make_key;
     int evt_lcpk_get_filepath;
     int evt_lcpk_rewrite;
-    
     int evt_lcpk_read;
     /*
     int evt_lcpk_data_ready;
@@ -1579,7 +1578,7 @@ struct module_t {
     int evt_set_kits;
     int evt_set_home_team_for_kits;
     int evt_set_away_team_for_kits;
-    
+
     int evt_set_tid;
     */
     int evt_set_match_time;
@@ -6972,8 +6971,10 @@ bool hook_if_all_found() {
                 hook_call_with_tail(_config->_hp_at_set_team_id, (BYTE*)sider_set_team_id_hk,
                     (BYTE*)pattern_set_team_id_tail, sizeof(pattern_set_team_id_tail)-1);
             }
-            if (_config->_hook_set_settings)
-                hook_call(_config->_hp_at_set_settings, (BYTE*)sider_set_settings_hk, 1);
+            if (_config->_hp_at_set_settings)
+                hook_call_with_head_and_tail(_config->_hp_at_set_settings, (BYTE*)sider_set_settings_hk,
+                    (BYTE*)pattern_set_settings_head, sizeof(pattern_set_settings_head)-1,
+                    (BYTE*)pattern_set_settings_tail, sizeof(pattern_set_settings_tail)-1);
 
             if (_config->_hook_trophy_check)
                 hook_call_with_head_and_tail(_config->_hp_at_trophy_check, (BYTE*)sider_trophy_check_hk,
