@@ -125,7 +125,6 @@ sider_set_team_id_hk endp
 
 sider_set_settings_hk proc
 
-        sub     rsp,8
         pushfq
         push    rcx
         push    rdx
@@ -134,43 +133,9 @@ sider_set_settings_hk proc
         push    r10
         push    r11
         sub     rsp,200h
-        vmovdqu  ymmword ptr [rsp+00h],ymm0
-        vmovdqu  ymmword ptr [rsp+20h],ymm1
-        vmovdqu  ymmword ptr [rsp+40h],ymm2
-        vmovdqu  ymmword ptr [rsp+60h],ymm3
-        vmovdqu  ymmword ptr [rsp+80h],ymm4
-        vmovdqu  ymmword ptr [rsp+0a0h],ymm5
-        vmovdqu  ymmword ptr [rsp+0c0h],ymm6
-        vmovdqu  ymmword ptr [rsp+0e0h],ymm7
-        vmovdqu  ymmword ptr [rsp+100h],ymm8
-        vmovdqu  ymmword ptr [rsp+120h],ymm9
-        vmovdqu  ymmword ptr [rsp+140h],ymm10
-        vmovdqu  ymmword ptr [rsp+160h],ymm11
-        vmovdqu  ymmword ptr [rsp+180h],ymm12
-        vmovdqu  ymmword ptr [rsp+1a0h],ymm13
-        vmovdqu  ymmword ptr [rsp+1c0h],ymm14
-        vmovdqu  ymmword ptr [rsp+1e0h],ymm15
-        sub     rsp,20h
-        movzx   eax,byte ptr [rdx+8bh]
-        mov     byte ptr [rcx+8bh],al
+        movzx eax,byte ptr [rdx+8Bh]
+        mov byte ptr [rcx+8Bh],al
         call    sider_set_settings
-        add     rsp,20h
-        vmovdqu  ymm0,ymmword ptr [rsp+00h]
-        vmovdqu  ymm1,ymmword ptr [rsp+20h]
-        vmovdqu  ymm2,ymmword ptr [rsp+40h]
-        vmovdqu  ymm3,ymmword ptr [rsp+60h]
-        vmovdqu  ymm4,ymmword ptr [rsp+80h]
-        vmovdqu  ymm5,ymmword ptr [rsp+0a0h]
-        vmovdqu  ymm6,ymmword ptr [rsp+0c0h]
-        vmovdqu  ymm7,ymmword ptr [rsp+0e0h]
-        vmovdqu  ymm8,ymmword ptr [rsp+100h]
-        vmovdqu  ymm9,ymmword ptr [rsp+120h]
-        vmovdqu  ymm10,ymmword ptr [rsp+140h]
-        vmovdqu  ymm11,ymmword ptr [rsp+160h]
-        vmovdqu  ymm12,ymmword ptr [rsp+180h]
-        vmovdqu  ymm13,ymmword ptr [rsp+1a0h]
-        vmovdqu  ymm14,ymmword ptr [rsp+1c0h]
-        vmovdqu  ymm15,ymmword ptr [rsp+1e0h]
         add     rsp,200h
         pop     r11
         pop     r10
@@ -179,7 +144,6 @@ sider_set_settings_hk proc
         pop     rdx
         pop     rcx
         popfq
-        add     rsp,8
         ret
 
 sider_set_settings_hk endp

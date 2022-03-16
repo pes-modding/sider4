@@ -88,7 +88,12 @@ static BYTE pattern_set_settings[18] =
     "\x88\x81\x8b\x00\x00\x00"
     "\x48\x8b\xc1"
     "\xc3";
+
 static int offs_set_settings = 0;
+static BYTE pattern_set_settings_head[2] =
+    "\x50";  // push rax
+static BYTE pattern_set_settings_tail[2] =
+    "\x58";
 
 /*
 0000000141C5A870 | 0F B7 D0                           | movzx edx,ax                            | check tournament_id for trophy
