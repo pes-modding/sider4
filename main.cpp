@@ -7,7 +7,6 @@
 
 HMODULE dll;
 HOOKPROC addr;
-HHOOK handle;
 HWND hWnd;
 DWORD hookThreadId;
 
@@ -22,8 +21,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         case WM_DESTROY:
         case SIDER_MSG_EXIT:
             // Exit the application when the window closes
+            append_to_log_(L"WindowProc:: uMsg=0x%x\n", uMsg);
             unsetHook();
-            PostQuitMessage(1);
+            append_to_log_(L"WindowProc:: sider exiting\n");
+            PostQuitMessage(0);
             return true;
     }
     return DefWindowProc(hwnd,uMsg,wParam,lParam);
@@ -75,7 +76,7 @@ HWND BuildWindow(int nCmdShow)
         style,
         CW_USEDEFAULT,  // initial x coordinate
         CW_USEDEFAULT,  // initial y coordinate
-        210, 70,   // width and height of the window
+        230, 70,   // width and height of the window
         NULL,           // no parent window.
         NULL,           // no menu
         NULL,           // no creator
@@ -88,7 +89,7 @@ HWND BuildWindow(int nCmdShow)
     HWND heightLabel = CreateWindowEx(
             xstyle, L"Static", 
             L"Sider for Pro Evolution Soccer 2018", style,
-            10, 10, 200, 50, 
+            20, 10, 210, 50,
             retval, NULL, NULL, NULL);
 
     HGDIOBJ hObj = GetStockObject(DEFAULT_GUI_FONT);
@@ -126,6 +127,14 @@ int APIENTRY WinMain(HINSTANCE hInstance,
     if (!_inited) {
         _inited = true;
         init();
+    }
+
+    // launch game, if specified in config
+    wstring start_game;
+    if (get_start_game(start_game)) {
+        open_log_(L"start.game: %s\n", start_game.c_str());
+        close_log_();
+        ShellExecute(NULL,L"open",start_game.c_str(),0,0,SW_SHOWNORMAL);
     }
 
     //SetPriorityClass(GetCurrentProcess(), IDLE_PRIORITY_CLASS);
