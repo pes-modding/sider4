@@ -20,26 +20,27 @@ end
 
 function m.set_teams(ctx, home, away)
     tlog("teams: %d vs %d", home, away)
+    tlog("ctx: %s", t2s(ctx))
 end
 
 function m.set_match_time(ctx, num_minutes)
     tlog("match_time: %d", num_minutes)
+    tlog("ctx: %s", t2s(ctx))
 end
 
 function m.set_stadium_choice(ctx, stadium_choice)
     tlog("set_stadium_choice: %d", stadium_choice)
+    tlog("ctx: %s", t2s(ctx))
 end
 
 function m.set_stadium(ctx, options)
     tlog("set_stadium: %s", t2s(options))
+    tlog("ctx: %s", t2s(ctx))
 end
 
 function m.set_conditions(ctx, options)
     tlog("set_conditions: %s", t2s(options))
-end
-
-function m.set_match_settings(ctx, options)
-    tlog("set_match_settings: %s", t2s(options))
+    tlog("ctx: %s", t2s(ctx))
 end
 
 function m.after_set_conditions(ctx)
@@ -48,19 +49,16 @@ function m.after_set_conditions(ctx)
 end
 
 function m.get_ball_name(ctx, ball_name)
-    tlog("get_ball_name: %s", ball_name)
+    tlog("ball name: %s", ball_name)
 end
 
 function m.get_stadium_name(ctx, stadium_name)
-    tlog("get_stadium_name: %s", stadium_name)
+    tlog("stadium name: %s", stadium_name)
 end
 
-local opts = { image_width = 32, image_hmargin = 4, image_vmargin = 2 }
 function m.overlay_on(ctx)
     local memory_used = collectgarbage("count")
-    local text = string.format("ctx: %s\nLua memory used: %d KB", t2s(ctx), memory_used)
-    local image_path = ctx.sider_dir .. "sider-icon.dds"
-    return text, image_path, opts
+    return(string.format("ctx: %s\nLua memory used: %d KB", t2s(ctx), memory_used))
 end
 
 function m.init(ctx)
@@ -69,7 +67,6 @@ function m.init(ctx)
     ctx.register("set_stadium_choice", m.set_stadium_choice)
     ctx.register("set_stadium", m.set_stadium)
     ctx.register("set_conditions", m.set_conditions)
-    ctx.register("set_match_settings", m.set_match_settings)
     ctx.register("after_set_conditions", m.after_set_conditions)
     ctx.register("get_ball_name", m.get_ball_name)
     ctx.register("get_stadium_name", m.get_stadium_name)

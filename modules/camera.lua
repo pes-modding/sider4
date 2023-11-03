@@ -3,13 +3,13 @@
 
 camera module
 Game research by: nesa24
-Requires: sider.dll 6.0.1+
+Requires: sider.dll 4.1.5+ (4.1.5+ for gamepad support)
 
 =========================
 --]]
 
 local m = {}
-m.version = "3.1"
+m.version = "2.0"
 local hex = memory.hex
 local settings
 
@@ -24,11 +24,10 @@ local frame_count = 0
 
 local overlay_curr = 1
 local overlay_states = {
-    { ui = "dynamic wide camera angle: %0.2f", prop = "dynwide_camera_angle", decr = -0.1, incr = 0.1 },
-    { ui = "fanview camera zoom: %0.2f", prop = "fanview_camera_zoom", decr = -0.1, incr = 0.1 },
-    { ui = "fanview camera height: %0.2f", prop = "fanview_camera_height", decr = -0.01, incr = 0.01 },
-    { ui = "fanview camera angle: %0.2f", prop = "fanview_camera_angle", decr = -0.1, incr = 0.1 },
-    { ui = "replays: %s", prop = "replays",
+    { ui = "camera zoom range: %0.2f", prop = "camera_range_zoom", decr = -0.1, incr = 0.1, def = 28.69 },
+    { ui = "camera height range: %0.2f", prop = "camera_range_height", decr = -0.05, incr = 0.05, def = 0.3 },
+    { ui = "camera angle range: %0.2f", prop = "camera_range_angle", decr = -1, incr = 1, def = 1.29 },
+    { ui = "replays: %s", prop = "replays", def = "on",
         nextf = function(v)
             return (v == "on") and "off" or "on"
         end,
@@ -36,34 +35,34 @@ local overlay_states = {
             return (v == "on") and "off" or "on"
         end,
     },
+    --[[
+    { ui = "ball cursor: %s", prop = "ball_cursor", def = "on",
+        nextf = function(v)
+            return (v == "on") and "off" or "on"
+        end,
+        prevf = function(v)
+            return (v == "on") and "off" or "on"
+        end,
+    },
+    --]]
 }
 local ui_lines = {}
 
 local bases = {
-    dynwide_angle = nil,
     camera = nil,
     replays = nil,
 }
 local game_info = {
-    dynwide_camera_angle  = { base = "dynwide_angle", offs = 0, format = "f", len = 4, def = 0.2 },
-    fanview_camera_zoom   = { base = "camera", offs = 0x08, format = "f", len = 4, def = 25.60 },
-    fanview_camera_height = { base = "camera", offs = 0x0c, format = "f", len = 4, def = 0.43 },
-    fanview_camera_angle  = { base = "camera", offs = 0x24, format = "f", len = 4, def = 1 },
-    replays = { base = "replays", offs = 0x04, format = "", len = 1, def = 'on', value_map = {on='\x04', off='\x07'} },
+    camera_range_zoom   = { "camera", 0x2D8, "f", 4},   --> default: 28.69
+    camera_range_height = { "camera", 0x2C0, "f", 4},   --> default: 0.3
+    camera_range_angle  = { "camera", 0x20, "f", 4},   --> default: 1.35
+    replays = { "replays", 0x04, "", 1, {on='\x04', off='\x06'}},
+    --ball_cursor = { "ball", 0x00, "", 7,
+       -- {on='\x0f\x29\x8d\xc0\xff\xff\xff', off='\x90\x90\x90\x90\x90\x90\x90'}},
 }
 
 local function load_ini(ctx, filename)
     local t = {}
-    -- initialize with defaults
-    for prop,info in pairs(game_info) do
-        t[prop] = info.def
-    end
-    -- now try to read ini-file, if present
-    local f,err = io.open(ctx.sider_dir .. "\\" .. filename)
-    if not f then
-        return t
-    end
-    f:close()
     for line in io.lines(ctx.sider_dir .. "\\" .. filename) do
         local name, value = string.match(line, "^([%w_]+)%s*=%s*([-%w%d.]+)")
         if name and value then
@@ -82,11 +81,11 @@ local function save_ini(ctx, filename)
         return
     end
     f:write(string.format("# Camera settings. Written by camera.lua " .. m.version .. "\n\n"))
-    f:write(string.format("dynwide_camera_angle = %0.2f\n", settings.dynwide_camera_angle or game_info.dynwide_camera_angle.def))
-    f:write(string.format("fanview_camera_zoom = %0.2f\n", settings.fanview_camera_zoom or game_info.fanview_camera_zoom.def))
-    f:write(string.format("fanview_camera_height = %0.2f\n", settings.fanview_camera_height or game_info.fanview_camera_height.def))
-    f:write(string.format("fanview_camera_angle = %0.2f\n", settings.fanview_camera_angle or game_info.fanview_camera_angle.def))
-    f:write(string.format("replays = %s\n", settings.replays or game_info.replays.def))
+    f:write(string.format("camera_range_zoom = %0.2f\n", settings.camera_range_zoom))
+    f:write(string.format("camera_range_height = %0.2f\n", settings.camera_range_height))
+    f:write(string.format("camera_range_angle = %0.2f\n", settings.camera_range_angle))
+    f:write(string.format("replays = %s\n", settings.replays))
+   -- f:write(string.format("ball_cursor = %s\n", settings.ball_cursor))
     f:write("\n")
     f:close()
 end
@@ -95,25 +94,26 @@ local function apply_settings(ctx, log_it, save_it)
     for name,value in pairs(settings) do
         local entry = game_info[name]
         if entry then
-            local base = bases[entry.base]
+            local base_name, offset, format, len, value_mapping = unpack(entry)
+            local base = bases[base_name]
             if base then
-                if entry.value_map then
-                    value = entry.value_map[value]
+                if value_mapping then
+                    value = value_mapping[value]
                 end
-                local addr = base + entry.offs
+                local addr = base + offset
                 local old_value, new_value
-                if entry.format ~= "" then
-                    old_value = memory.unpack(entry.format, memory.read(addr, entry.len))
-                    memory.write(addr, memory.pack(entry.format, value))
-                    new_value = memory.unpack(entry.format, memory.read(addr, entry.len))
+                if format ~= "" then
+                    old_value = memory.unpack(format, memory.read(addr, len))
+                    memory.write(addr, memory.pack(format, value))
+                    new_value = memory.unpack(format, memory.read(addr, len))
                     if log_it then
                         log(string.format("%s: changed at %s: %s --> %s",
                             name, hex(addr), old_value, new_value))
                     end
                 else
-                    old_value = memory.read(addr, entry.len)
+                    old_value = memory.read(addr, len)
                     memory.write(addr, value)
-                    new_value = memory.read(addr, entry.len)
+                    new_value = memory.read(addr, len)
                     if log_it then
                         log(string.format("%s: changed at %s: %s --> %s",
                             name, hex(addr), hex(old_value), hex(new_value)))
@@ -123,7 +123,7 @@ local function apply_settings(ctx, log_it, save_it)
         end
     end
     if (save_it) then
-        save_ini(ctx, "camera.ini")
+        save_ini(ctx, "modules\\camera.ini")
     end
 end
 
@@ -188,7 +188,7 @@ function m.key_down(ctx, vkey)
         apply_settings(ctx, false, true)
     elseif vkey == RESTORE_KEY then
         for i,s in ipairs(overlay_states) do
-            settings[s.prop] = game_info[s.prop].def
+            settings[s.prop] = s.def
         end
         apply_settings(ctx, false, true)
     end
@@ -235,98 +235,45 @@ function m.gamepad_input(ctx, inputs)
     end
 end
 
-local function find_pattern(ctx, pattern, cache_id)
-    if cache_id then
-        -- check the cached location first: it might match
-        local f = io.open(ctx.sider_dir .. "\\camera.cache", "rb")
-        if f then
-            local cache_data = f:read("*all")
-            local hint = string.sub(cache_data, cache_id*8+1, cache_id*8+8)
-            if hint and hint ~= "" then
-                local addr = memory.unpack("i64", hint)
-                if addr and addr ~= 0 then
-                    local data = memory.read(addr, #pattern)
-                    if pattern == data then
-                        log(string.format("matched cache hint #%s", cache_id))
-                        return addr
-                    end
-                end
-            end
-        end
-    end
-    -- no cache, or no match: search the process
-    return memory.search_process(pattern)
-end
-
-local function write_cache(ctx, cache, cache_size)
-    local f = io.open(ctx.sider_dir .. "\\camera.cache", "wb")
-    for i=0,cache_size-1 do
-        addr = cache[i] or 0
-        f:write(memory.pack("i64", addr))
-    end
-    f:close()
-end
-
 function m.init(ctx)
-    local cache = {}
-
-    settings = load_ini(ctx, "camera.ini")
-
     -- find the base address of the block of camera settings
-    --[[
-0000000147E08772 | 0F 11 44 24 20                     | movups xmmword ptr ss:[rsp+20],xmm0    |
-0000000147E08777 | 89 45 87                           | mov dword ptr ss:[rbp-79],eax          |
-0000000147E0877A | 0F 11 4C 24 30                     | movups xmmword ptr ss:[rsp+30],xmm1    |
-    --]]
-    local loc = find_pattern(ctx, "\x0f\x11\x44\x24\x20\x89\x45\x87\x0f\x11\x4c\x24\x30", 0)
+    local pattern = "\xAE\x47\x89\x40\x66\x66\x98\x41\x9A\x99"
+    local loc = memory.search_process(pattern)
     if loc then
-        cache[0] = loc
-        local rel_offset = memory.unpack("i32", memory.read(loc - 4, 4))
-        bases.camera = loc + rel_offset
-        log(string.format("Fanview camera block base address: %s", hex(bases.camera)))
+        bases.camera = loc
+        log(string.format("Camera block base address: %s", hex(bases.camera)))
     else
-        error("problem: unable to find code pattern for camera block")
+        log("problem: unable to find code pattern for camera block")
     end
-    --]]
+
+    settings = load_ini(ctx, "modules\\camera.ini")
 
     -- find replays opcode
-    local loc = find_pattern(ctx, "\x41\xc6\x45\x08\x04", 1)
+    local pattern = "\x41\xc6\x45\x08\x04"
+    local loc = memory.search_process(pattern)
     if loc then
-        cache[1] = loc
         bases.replays = loc
-        log(string.format("Replays switch address: %s", hex(bases.replays)))
+        log(string.format("Replays op-code address: %s", hex(bases.replays)))
     else
-        error("problem: unable to find code pattern for replays switch")
+        log("problem: unable to find code pattern for replays switch")
     end
 
-    -- find angle reading instruction for Dynamic Wide camera.
-    -- this code pattern immediately follows the instruction we need:
+    -- find ball cursor place
     --[[
-000000014AD14892 | F3 41 0F 59 FA                     | mulss xmm7,xmm10                       |
-000000014AD14897 | F3 45 0F 5E C2                     | divss xmm8,xmm10                       |
-000000014AD1489C | F3 41 0F 5E F2                     | divss xmm6,xmm10                       |
-000000014AD148A1 | F3 41 0F 5C C0                     | subss xmm0,xmm8                        |
-    --]]
-    local loc = find_pattern(ctx, "\xf3\x41\x0f\x59\xfa\xf3\x45\x0f\x5e\xc2\xf3\x41\x0f\x5e\xf2\xf3\x41\x0f\x5c\xc0", 2)
+00000001515ED611 | 89 B5 BC FF FF FF                    | mov dword ptr ss:[rbp-44],esi          |
+00000001515ED617 | 0F 28 B5 B0 FF FF FF                 | movaps xmm6,xmmword ptr ss:[rbp-50]    |
+00000001515ED61E | 0F 29 8D C0 FF FF FF                 | movaps xmmword ptr ss:[rbp-40],xmm1    | store ball cursor coordinates
+    
+    local pattern = "\x89\xb5\xbc\xff\xff\xff\x0f\x28\xb5\xb0\xff\xff\xff"
+    local loc = memory.search_process(pattern)
     if loc then
-        cache[2] = loc
-        local rel_offset = memory.unpack("i32", memory.read(loc - 4, 4))
-        log(string.format("Dynamic Wide angle read at: %s", hex(loc - 9)))
-        log(string.format("Dynamic Wide org angle address: %s", hex(loc + rel_offset)))
-        -- codecave concept: modify instruction, change relative offset.
-        -- We need to make the game to read a value from a different location,
-        -- so that we can safely modify the value.
-        rel_offset = rel_offset + 0x2c -- there's an unused memory slot there
-        memory.write(loc - 4, memory.pack("i32", rel_offset))
-        bases.dynwide_angle = loc + rel_offset
-        log(string.format("Dynamic Wide new angle address: %s", hex(bases.dynwide_angle)))
+        loc = loc + #pattern
+        bases.ball = loc
+        log(string.format("Ball cursor op-code address: %s", hex(bases.ball)))
     else
-        error("problem: unable to find code pattern for dynamic wide camera angle read")
+        log("problem: unable to find code pattern for ball cursor read")
     end
-
-    -- save found locations to disk
-    write_cache(ctx, cache, 3)
-
+--]]
     -- register for events
     ctx.register("set_teams", m.set_teams)
     ctx.register("overlay_on", m.overlay_on)
