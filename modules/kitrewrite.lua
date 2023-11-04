@@ -4,6 +4,7 @@
 local m = {}
 
 function m.rewrite(ctx, filename)
+    --log(filename)
     local team_id = string.match(filename, "\\u(%d+)g1.*%.ftex")
     if team_id then
         return string.gsub(filename, "g1", "p2")

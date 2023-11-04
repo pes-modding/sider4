@@ -1,5 +1,5 @@
 @echo off
 echo Setting kitserver compile environment
-@call "c:\vs11\vc\bin\x86_amd64\vcvarsx86_amd64.bat"
+@call "c:\program files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsx86_amd64.bat"
 echo Environment set
 
