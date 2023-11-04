@@ -4344,7 +4344,6 @@ HRESULT sider_CreateSwapChain(IDXGIFactory1 *pFactory, IUnknown *pDevice, DXGI_S
 
     logu_("hr=0x%x, IDXGISwapChain: %p\n", hr, *ppSwapChain);
     _swap_chain = *ppSwapChain;
-    //_swap_chain->SetFullscreenState(TRUE, *ppTarget);
 
     _device = (ID3D11Device*)pDevice;
     logu_("==> device: %p\n", _device);
