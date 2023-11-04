@@ -20,6 +20,7 @@ extern sider_stadium_name:proc
 extern sider_def_stadium_name:proc
 extern sider_set_stadium_choice:proc
 extern sider_data_ready:proc
+extern sider_before_create_swapchain:proc
 
 .code
 sider_read_file_hk proc
@@ -305,5 +306,41 @@ sider_data_ready_hk proc
         ret
 
 sider_data_ready_hk endp
+
+;0000000141C74670 | 4C:8D4C24 20                    | lea r9,qword ptr ss:[rsp+20]            |
+;0000000141C74675 | 4C:8D4424 30                    | lea r8,qword ptr ss:[rsp+30]            |
+;0000000141C7467A | 48:8BD6                         | mov rdx,rsi                             |
+;0000000141C7467D | 48:8BCF                         | mov rcx,rdi                             |
+;0000000141C74680 | FF50 50                         | call qword ptr ds:[rax+50]              |
+
+sider_create_swapchain_hk proc
+
+        push    rax
+        push    rbx
+        push    rcx
+        push    r8
+        push    r9
+        push    r10
+        push    r11
+        push    rsi
+        push    rdi
+        mov     rcx,rdi  ; pointer to IDXGIFactory1
+        call    sider_before_create_swapchain
+        pop     rdi
+        pop     rsi
+        pop     r11
+        pop     r10
+        pop     r9
+        pop     r8
+        pop     rcx
+        pop     rbx
+        pop     rax
+        lea     r9,qword ptr [rsp+28h]
+        lea     r8,qword ptr [rsp+38h]
+        mov     rdx,rsi
+        mov     rcx,rdi
+        ret
+
+sider_create_swapchain_hk endp
 
 end

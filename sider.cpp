@@ -376,14 +376,11 @@ void HookXInputGetState();
 LRESULT CALLBACK sider_keyboard_proc(int code, WPARAM wParam, LPARAM lParam);
 LRESULT CALLBACK sider_foreground_idle_proc(int code, WPARAM wParam, LPARAM lParam);
 
-typedef HRESULT (*PFN_CreateDXGIFactory1)(REFIID riid, void **ppFactory);
 typedef HRESULT (*PFN_IDXGIFactory1_CreateSwapChain)(IDXGIFactory1 *pFactory, IUnknown *pDevice, DXGI_SWAP_CHAIN_DESC *pDesc, IDXGISwapChain **ppSwapChain);
 typedef HRESULT (*PFN_IDXGISwapChain_Present)(IDXGISwapChain *swapChain, UINT SyncInterval, UINT Flags);
-PFN_CreateDXGIFactory1 _org_CreateDXGIFactory1;
 PFN_IDXGIFactory1_CreateSwapChain _org_CreateSwapChain;
 PFN_IDXGISwapChain_Present _org_Present(NULL);
 
-HRESULT sider_CreateDXGIFactory1(REFIID riid, void **ppFactory);
 HRESULT sider_CreateSwapChain(IDXGIFactory1 *pFactory, IUnknown *pDevice, DXGI_SWAP_CHAIN_DESC *pDesc, IDXGISwapChain **ppSwapChain);
 HRESULT sider_Present(IDXGISwapChain *swapChain, UINT SyncInterval, UINT Flags);
 
@@ -707,6 +704,10 @@ extern "C" void sider_check_kit_choice_hk();
 extern "C" DWORD sider_data_ready(FILE_LOAD_INFO *fli);
 
 extern "C" void sider_data_ready_hk();
+
+extern "C" void sider_before_create_swapchain(IDXGIFactory1 *factory);
+
+extern "C" void sider_create_swapchain_hk();
 /*
 extern "C" void sider_kit_status(KIT_STATUS_INFO *ksi, TASK_UNIFORM_IMPL *tu_impl);
 
@@ -4309,6 +4310,34 @@ WINDOWPLACEMENT wpc;
 LONG HWNDStyle = 0;
 LONG HWNDStyleEx = 0;
 
+void sider_before_create_swapchain(IDXGIFactory1 *pFactory)
+{
+    // check if we need to hook SwapChain method
+    BYTE** vtbl = *(BYTE***)pFactory;
+    PFN_IDXGIFactory1_CreateSwapChain sc = (PFN_IDXGIFactory1_CreateSwapChain)vtbl[10];
+    DBG(64) logu_("current CreateSwapChain = %p\n", sc);
+    if ((BYTE*)sc == (BYTE*)sider_CreateSwapChain) {
+        DBG(64) logu_("CreateSwapChain already hooked.\n");
+    }
+    else {
+        logu_("Hooking CreateSwapChain\n");
+        _org_CreateSwapChain = sc;
+        logu_("_org_CreateSwapChain = %p\n", _org_CreateSwapChain);
+
+        DWORD protection = 0;
+        DWORD newProtection = PAGE_EXECUTE_READWRITE;
+        if (VirtualProtect(vtbl+10, 8, newProtection, &protection)) {
+            vtbl[10] = (BYTE*)sider_CreateSwapChain;
+
+            sc = (PFN_IDXGIFactory1_CreateSwapChain)vtbl[10];
+            logu_("now CreateSwapChain = %p\n", sc);
+        }
+        else {
+            logu_("ERROR: VirtualProtect failed for: %p\n", vtbl+10);
+        }
+    }
+}
+
 HRESULT sider_CreateSwapChain(IDXGIFactory1 *pFactory, IUnknown *pDevice, DXGI_SWAP_CHAIN_DESC *pDesc, IDXGISwapChain **ppSwapChain)
 {
     HRESULT hr = _org_CreateSwapChain(pFactory, pDevice, pDesc, ppSwapChain);
@@ -4370,40 +4399,6 @@ HRESULT sider_CreateSwapChain(IDXGIFactory1 *pFactory, IUnknown *pDevice, DXGI_S
         }
     }
 
-    return hr;
-}
-
-HRESULT sider_CreateDXGIFactory1(REFIID riid, void **ppFactory)
-{
-    
-    HRESULT hr = _org_CreateDXGIFactory1(riid, ppFactory);
-    DBG(64) logu_("hr=0x%x, IDXGIFactory1: %p\n", hr, *ppFactory);
-   
-    // check if we need to hook SwapChain method
-    IDXGIFactory1 *f = (IDXGIFactory1*)(*ppFactory);
-    BYTE** vtbl = *(BYTE***)f;
-    PFN_IDXGIFactory1_CreateSwapChain sc = (PFN_IDXGIFactory1_CreateSwapChain)vtbl[10];
-    DBG(64) logu_("current CreateSwapChain = %p\n", sc);
-    if ((BYTE*)sc == (BYTE*)sider_CreateSwapChain) {
-        DBG(64) logu_("CreateSwapChain already hooked.\n");
-    }
-    else {
-        logu_("Hooking CreateSwapChain\n");
-        _org_CreateSwapChain = sc;
-        logu_("_org_CreateSwapChain = %p\n", _org_CreateSwapChain);
-
-        DWORD protection = 0;
-        DWORD newProtection = PAGE_EXECUTE_READWRITE;
-        if (VirtualProtect(vtbl+10, 8, newProtection, &protection)) {
-            vtbl[10] = (BYTE*)sider_CreateSwapChain;
-
-            sc = (PFN_IDXGIFactory1_CreateSwapChain)vtbl[10];
-            logu_("now CreateSwapChain = %p\n", sc);
-        }
-        else {
-            logu_("ERROR: VirtualProtect failed for: %p\n", vtbl+10);
-        }
-    }
     return hr;
 }
 
@@ -6678,7 +6673,7 @@ DWORD install_func(LPVOID thread_param) {
     frag[12] = pattern_sider_2;
     frag[13] = pattern_sider_3;
     frag[14] = pattern_sider_4;
-    frag[15] = pattern_dxgi;
+    frag[15] = pattern_create_swapchain;
     frag[16] = pattern_ball_name;
     frag[17] = pattern_stadium_name;
     frag[18] = pattern_def_stadium_name;
@@ -6705,7 +6700,7 @@ DWORD install_func(LPVOID thread_param) {
     frag_len[12] = _config->_lua_enabled ? sizeof(pattern_sider_2)-1 : 0;
     frag_len[13] = _config->_lua_enabled ? sizeof(pattern_sider_3)-1 : 0;
     frag_len[14] = _config->_lua_enabled ? sizeof(pattern_sider_4)-1 : 0;
-    frag_len[15] = _config->_overlay_enabled ? sizeof(pattern_dxgi)-1 : 0;
+    frag_len[15] = _config->_overlay_enabled ? sizeof(pattern_create_swapchain)-1 : 0;
     frag_len[16] = _config->_lua_enabled ? sizeof(pattern_ball_name)-1 : 0;
     frag_len[17] = _config->_lua_enabled ? sizeof(pattern_stadium_name)-1 : 0;
     frag_len[18] = _config->_lua_enabled ? sizeof(pattern_def_stadium_name)-1 : 0;
@@ -6729,7 +6724,7 @@ DWORD install_func(LPVOID thread_param) {
     offs[12] = offs_sider_2;
     offs[13] = offs_sider_3;
     offs[14] = offs_sider_4;
-    offs[15] = offs_dxgi;
+    offs[15] = offs_create_swapchain;
     offs[16] = offs_ball_name;
     offs[17] = offs_stadium_name;
     offs[18] = offs_def_stadium_name;
@@ -6753,7 +6748,7 @@ DWORD install_func(LPVOID thread_param) {
     addrs[12] = &_config->_hp_at_sider_2;
     addrs[13] = &_config->_hp_at_sider_3;
     addrs[14] = &_config->_hp_at_sider_4;
-    addrs[15] = &_config->_hp_at_dxgi;
+    addrs[15] = &_config->_hp_at_create_swapchain;
     addrs[16] = &_config->_hp_at_ball_name;
     addrs[17] = &_config->_hp_at_stadium_name;
     addrs[18] = &_config->_hp_at_def_stadium_name;
@@ -6881,7 +6876,7 @@ bool all_found(config_t *cfg) {
 
     if (cfg->_overlay_enabled) {
         all = all && (
-            cfg->_hp_at_dxgi > 0
+            cfg->_hp_at_create_swapchain > 0
         );
     }
     return all;
@@ -6956,12 +6951,8 @@ bool hook_if_all_found() {
         }
 
         if (_config->_overlay_enabled && _config->_lua_enabled) {
-            if (_config->_hp_at_dxgi) {
-                BYTE *addr = get_target_addr(_config->_hp_at_dxgi);
-                BYTE *loc = get_target_location(addr);
-                _org_CreateDXGIFactory1 = *(PFN_CreateDXGIFactory1*)loc;
-                logu_("_org_CreateDXGIFactory1: %p\n", _org_CreateDXGIFactory1);
-                hook_indirect_call(addr, (BYTE*)sider_CreateDXGIFactory1);
+            if (_config->_hp_at_create_swapchain) {
+                hook_call_rdx(_config->_hp_at_create_swapchain, (BYTE*)sider_create_swapchain_hk, 4);
             }
         }
 
