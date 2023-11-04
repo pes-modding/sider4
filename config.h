@@ -101,7 +101,7 @@ public:
     BYTE *_hp_at_data_ready;
     BYTE *_hp_at_call_to_move;
 
-    BYTE *_hp_at_dxgi;
+    BYTE *_hp_at_create_swapchain;
     BYTE *_hp_at_xinput;
 
     bool _hook_set_team_id;
@@ -148,7 +148,7 @@ public:
                  _key_cache_ttl_sec(10),
                  _rewrite_cache_ttl_sec(10),
                  _cache_size(DEFAULT_CACHE_SIZE),
-                 _hp_at_dxgi(NULL),
+                 _hp_at_create_swapchain(NULL),
                  _hp_at_read_file(NULL),
                  _hp_at_get_size(NULL),
                  _hp_at_extend_cpk(NULL),

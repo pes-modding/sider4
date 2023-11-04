@@ -111,7 +111,7 @@ clean:
 	del *.obj *.dll *.exp *.res *.lib *.exe *~ memlib_lua.h vshader.h vtexshader.h pshader.h ptexshader.h
 
 clean-all: clean
-	cd $(LUALIBPATH) && del /Q lua51.exp lua51.lib lua51.dll luajit.exe
+	cd $(LUALIBPATH) && del /Q lua51.exp lua51.lib lua51.dll luajit.exe *.lib *.exp
 	cd $(FW1LIBROOT) && del /Q /S Debug Release
 	cd $(FW1LIBROOT)\Source && del /Q /S vsimple.h vclip.h vempty.h gsimple.h gclip.h psimple.h pclip.h
 	cd $(LPZLIB) && nmake -f win32\Makefile.msc clean

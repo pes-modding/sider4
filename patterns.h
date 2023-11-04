@@ -184,19 +184,19 @@ static int offs_sider_4 = 4;
 static BYTE patch_sider_4[4] = "\x32\xc9\x90";  // xor cl,cl
 
 /*
-00007FFF42B2263E | 48:33C4                  | xor rax,rsp                             |
-00007FFF42B22641 | 48:898424 E0010000       | mov qword ptr ss:[rsp+1E0],rax          |
-00007FFF42B22649 | 66:0F6F05 EF452200       | movdqa xmm0,xmmword ptr ds:[7FFF42D46C4 |
-00007FFF42B22651 | 48:8BDA                  | mov rbx,rdx                             |
+0000000141C74670 | 4C:8D4C24 20                    | lea r9,qword ptr ss:[rsp+20]            |
+0000000141C74675 | 4C:8D4424 30                    | lea r8,qword ptr ss:[rsp+30]            |
+0000000141C7467A | 48:8BD6                         | mov rdx,rsi                             |
+0000000141C7467D | 48:8BCF                         | mov rcx,rdi                             |
+0000000141C74680 | FF50 50                         | call qword ptr ds:[rax+50]              |
 */
-
-static BYTE pattern_dxgi[23] =
-    "\x48\x33\xc4"
-    "\x48\x89\x84\x24\xa0\x00\x00\x00"
-    "\x4c\x8b\xf2"
-    "\x48\x8b\xf1"
-    "\x48\x8d\x54\x24\x30";
-static int offs_dxgi = 0x1d;
+static BYTE pattern_create_swapchain[20] =
+    "\x4c\x8d\x4c\x24\x20"
+    "\x4c\x8d\x44\x24\x30"
+    "\x48\x8b\xd6"
+    "\x48\x8b\xcf"
+    "\xff\x50\x50";
+static int offs_create_swapchain = 0;
 
 static BYTE pattern_ball_name[11] =
     "\x80\x79\x04\x00"
