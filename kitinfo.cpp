@@ -204,8 +204,8 @@ void set_kit_info_from_lua_table(lua_State *L, int index, BYTE *dst, BYTE *radar
     ; shorts parameters
     ShortsModel=2       ; 0 to 17
     ShortsNumberSide=0       ; 0=Left, 1=Right
-    ShortsNumberX=9       ; 0 to 14
-    ShortsNumberY=10       ; 0 to 15
+    ShortsNumberX=9       ; 0 to 31
+    ShortsNumberY=10       ; 0 to 31
     ShortsNumberSize=9       ; 0 to 31
     **/
     lua_getfield(L, index, "ShortsModel");
@@ -220,12 +220,12 @@ void set_kit_info_from_lua_table(lua_State *L, int index, BYTE *dst, BYTE *radar
     lua_pop(L, 1);
     lua_getfield(L, index, "ShortsNumberX");
     if (lua_isnumber(L, -1)) {
-        set_word_bits(dst+0x16, luaL_checkinteger(L, -1), 6, 10);
+        set_word_bits(dst+0x16, luaL_checkinteger(L, -1), 5, 10);
     }
     lua_pop(L, 1);
     lua_getfield(L, index, "ShortsNumberY");
     if (lua_isnumber(L, -1)) {
-        set_word_bits(dst+0x16, luaL_checkinteger(L, -1), 0, 4);
+        set_word_bits(dst+0x16, luaL_checkinteger(L, -1), 0, 5);
     }
     lua_pop(L, 1);
     lua_getfield(L, index, "ShortsNumberSize");
@@ -525,17 +525,17 @@ void get_kit_info_to_lua_table(lua_State *L, int index, BYTE *src) {
     ; shorts parameters
     ShortsModel=2       ; 0 to 17
     ShortsNumberSide=0       ; 0=Left, 1=Right
-    ShortsNumberX=9       ; 0 to 14
-    ShortsNumberY=10       ; 0 to 15
+    ShortsNumberX=9       ; 0 to 31
+    ShortsNumberY=10       ; 0 to 31
     ShortsNumberSize=9       ; 0 to 31
     **/
     lua_pushinteger(L, src[3]);
     lua_setfield(L, index, "ShortsModel");
     lua_pushinteger(L, get_word_bits(src+0x16, 15, 16));
     lua_setfield(L, index, "ShortsNumberSide");
-    lua_pushinteger(L, get_word_bits(src+0x16, 6, 10));
+    lua_pushinteger(L, get_word_bits(src+0x16, 5, 10));
     lua_setfield(L, index, "ShortsNumberX");
-    lua_pushinteger(L, get_word_bits(src+0x16, 0, 4));
+    lua_pushinteger(L, get_word_bits(src+0x16, 0, 5));
     lua_setfield(L, index, "ShortsNumberY");
     lua_pushinteger(L, get_word_bits(src+0x16, 10, 15));
     lua_setfield(L, index, "ShortsNumberSize");

@@ -141,8 +141,8 @@ struct STAD_STRUCT {
 };
 
 struct SHIRTCOLOR_STRUCT {
-    BYTE index;
-    BYTE unknown1;
+    BYTE index;    // 0xXY: X - index of kit in the set, Y - index of the set (0-regular, 1-european)
+    BYTE unknown1; // 0x05 - goalkeeper
     BYTE color1[3];
     BYTE color2[3];
 };
@@ -152,15 +152,17 @@ struct TEAM_INFO_STRUCT {
     BYTE team_name[0x46];
     BYTE team_abbr[4];
     BYTE unknown1[2];
-    BYTE unknown2[0x588];
+    BYTE unknown2[0x468];
+    BYTE unknown3;
     SHIRTCOLOR_STRUCT players[2];
     SHIRTCOLOR_STRUCT goalkeepers[1];
     SHIRTCOLOR_STRUCT extra_players[7];
-    BYTE unknown3[0x68];
+    BYTE unknown4[3];
+    DWORD unknown5[5];
 };
 
 struct MATCH_INFO_STRUCT {
-    DWORD dw0;
+    DWORD game_mode;  // 4 - UCL, 5 - UEL, 7 - ACL
     WORD match_id;
     WORD tournament_id_encoded;
     BYTE match_leg;
@@ -171,7 +173,7 @@ struct MATCH_INFO_STRUCT {
     BYTE match_time;
     BYTE unknown3[3];
     DWORD unknown4[4];
-    BYTE db0x03;
+    BYTE db0x03; // number of subs
     BYTE db0x17;
     BYTE stadium_choice;
     BYTE unknown5;
@@ -179,6 +181,27 @@ struct MATCH_INFO_STRUCT {
     DWORD weather_effects;
     DWORD unknown7[10];
     struct STAD_STRUCT stad;
+    /**
+    BYTE unknown10[0xa0];
+    BYTE home_player_kit_id;
+    BYTE home_player_kit_id_unknown[3];
+    BYTE away_player_kit_id;
+    BYTE away_player_kit_id_unknown[3];
+    BYTE home_gk_kit_id;
+    BYTE home_gk_kit_id_unknown[3];
+    BYTE away_gk_kit_id;
+    BYTE away_gk_kit_id_unknown[3];
+    **/
+    BYTE unknown8[0x7c];
+    BYTE unknown9[2];
+    BYTE home_player_kit_id;
+    BYTE away_player_kit_id;
+    BYTE home_gk_kit_id;
+    BYTE away_gk_kit_id;
+    BYTE unknown10[2];
+    DWORD unknown11[2];
+    TEAM_INFO_STRUCT home;
+    TEAM_INFO_STRUCT away;
 };
 struct STAD_INFO_STRUCT {
     DWORD unknown0;
@@ -695,12 +718,11 @@ extern "C" void sider_free_select(BYTE *controller_restriction);
 extern "C" void sider_set_stadium_choice(MATCH_INFO_STRUCT *mi, WORD stadium_id);
 
 extern "C" void sider_set_stadium_choice_hk();
-/*
 
 extern "C" void sider_check_kit_choice(MATCH_INFO_STRUCT *mi, DWORD home_or_away);
 
 extern "C" void sider_check_kit_choice_hk();
-*/
+
 extern "C" DWORD sider_data_ready(FILE_LOAD_INFO *fli);
 
 extern "C" void sider_data_ready_hk();
@@ -708,7 +730,7 @@ extern "C" void sider_data_ready_hk();
 extern "C" void sider_before_create_swapchain(IDXGIFactory1 *factory);
 
 extern "C" void sider_create_swapchain_hk();
-/*
+
 extern "C" void sider_kit_status(KIT_STATUS_INFO *ksi, TASK_UNIFORM_IMPL *tu_impl);
 
 extern "C" void sider_kit_status_hk();
@@ -724,7 +746,7 @@ extern "C" void sider_clear_team_for_kits_hk();
 extern "C" BYTE* sider_loaded_uniparam(BYTE *uniparam);
 
 extern "C" void sider_loaded_uniparam_hk();
-
+/*
 extern "C" void sider_copy_clock_hk();
 
 extern "C" void sider_clear_sc(SCOREBOARD_INFO *sci);
@@ -777,7 +799,7 @@ static BYTE* get_uniparam()
         if (obj1) {
             void *obj2 = *(void**)((BYTE*)obj1+8);
             if (obj2) {
-                void *obj3 = *(void**)((BYTE*)obj2+0x50);
+                void *obj3 = *(void**)((BYTE*)obj2+0x40);
                 if (obj3) {
                     return *(BYTE**)((BYTE*)obj3+8);
                 }
@@ -795,8 +817,32 @@ static char *gk_suffix_map[] = {
     "GK1st",
 };
 
+bool use_euro_kit(MATCH_INFO_STRUCT *mi)
+{
+    if (!mi) {
+        return false;
+    }
+    if (mi->tournament_id_encoded == 0xffff && (mi->game_mode == 4 || mi->game_mode == 5)) {
+        // UCL/UEL Exhibition match
+        return true;
+    }
+    // UCL/UEL tournament ids
+    switch (mi->tournament_id_encoded) {
+        case 2,3,4,5,6:
+            return true;
+        case 400,401,402,403,404:
+            return true;
+        case 631,632,633,634,635,636,637,638:
+            return true;
+        case 1000,1001,1002,1003,1004,1005,1006,1007,1008,1009,1010,1011:
+            return true;
+    }
+    return false;
+}
+
 static BYTE* find_kit_info(int team_id, char *suffix, DWORD *len=NULL)
 {
+    //logu_("find_kit_info:: looking for kit for team_id=%d, suffix=%s\n", team_id, suffix);
     BYTE *uniparam = get_uniparam();
     if (uniparam) {
         DWORD numItems = *(DWORD*)(uniparam);
@@ -808,6 +854,7 @@ static BYTE* find_kit_info(int team_id, char *suffix, DWORD *len=NULL)
             DWORD cf_name_starting_offs = *(DWORD*)(uniparam+offs+8);
 
             char *kit_config_name = strdup((char*)uniparam + cf_name_starting_offs);
+            //logu_("find_kit_info:: kit_config_name: {%s}\n", kit_config_name);
 
             char *first_underscore = strchr(kit_config_name,'_');
             if (first_underscore) {
@@ -816,7 +863,8 @@ static BYTE* find_kit_info(int team_id, char *suffix, DWORD *len=NULL)
                 *first_underscore = '\0';
                 int id = 0;
                 if (sscanf(kit_config_name,"%d",&id)==1) {
-                    if ((team_id == id && memcmp(first_underscore+1, "DEF", 3)==0) ||
+                    if ((team_id == id && use_euro_kit(_mi) && memcmp(first_underscore+1, "CL", 2)==0) ||
+                        (team_id == id && memcmp(first_underscore+1, "DEF", 3)==0) ||
                         (team_id == id + 0x10000 && memcmp(first_underscore+1, "ACL", 3)==0)) {
                         if (memcmp(second_underscore+1, suffix, strlen(suffix))==0) {
                             BYTE *p = uniparam + cf_starting_offs;
@@ -1568,13 +1616,13 @@ struct module_t {
     int evt_lcpk_data_ready;
 
     int evt_set_teams;
-    /*
+
     int evt_set_kits;
     int evt_set_home_team_for_kits;
     int evt_set_away_team_for_kits;
 
     int evt_set_tid;
-    */
+
     int evt_set_match_time;
     int evt_set_stadium_choice;
     int evt_set_stadium;
@@ -2360,7 +2408,7 @@ void module_set_teams(module_t *m, DWORD home, DWORD away) //, TEAM_INFO_STRUCT 
         LeaveCriticalSection(&_cs);
     }
 }
-/*
+
 void module_set_home_team_for_kits(module_t *m, DWORD team_id, bool is_edit_mode)
 {
     if (m->evt_set_home_team_for_kits != 0) {
@@ -2401,6 +2449,40 @@ void module_set_away_team_for_kits(module_t *m, DWORD team_id, bool is_edit_mode
     }
 }
 
+BYTE* get_radar_color_addr(int kit_id, MATCH_INFO_STRUCT *mi, TEAM_INFO_STRUCT *ti)
+{
+    BYTE add = use_euro_kit(mi)?1:0;
+    BYTE index = (kit_id << 4) + add;
+    for (int j=0; j<2; j++) {
+        logu_("get_radar_color_addr: searching for index: 0x%02x ...\n", index);
+        for (int i=0; i<2; i++) {
+            logu_("get_radar_color_addr: index = 0x%02x\n", ti->players[i].index);
+            if (ti->players[i].index == index) {
+                logu_("get_radar_color_addr: got %p\n", ti->players[i].color1);
+                return ti->players[i].color1;
+            }
+        }
+        logu_("get_radar_color_addr: index = 0x%02x\n", ti->goalkeepers[0].index);
+        if (ti->goalkeepers[0].index == index) {
+            logu_("get_radar_color_addr: got %p\n", ti->goalkeepers[0].color1);
+            return ti->goalkeepers[0].color1;
+        }
+        for (int i=0; i<7; i++) {
+            logu_("get_radar_color_addr: index = 0x%02x\n", ti->extra_players[i].index);
+            if (ti->extra_players[i].index == index) {
+                logu_("get_radar_color_addr: got %p\n", ti->extra_players[i].color1);
+                return ti->extra_players[i].color1;
+            }
+        }
+        // if not found at this point, look for non-euro
+        if (!add) {
+            break;
+        }
+        index--;
+    }
+    return NULL;
+}
+
 bool module_set_kits(module_t *m, MATCH_INFO_STRUCT *mi)
 {
     BYTE *home_ki, *away_ki;
@@ -2437,12 +2519,12 @@ bool module_set_kits(module_t *m, MATCH_INFO_STRUCT *mi)
         }
         if (lua_istable(L, -2)) {
             // home table
-            BYTE *radar_color = (home_kit_id < 2) ? _mi->home.players[home_kit_id].color1 : _mi->home.extra_players[home_kit_id-2].color1;
+            BYTE *radar_color = get_radar_color_addr(home_kit_id, mi, &(mi->home));
             set_kit_info_from_lua_table(L, -2, home_ki, radar_color, NULL);
         }
         if (lua_istable(L, -1)) {
             // away table
-            BYTE *radar_color = (away_kit_id < 2) ? _mi->away.players[away_kit_id].color1 : _mi->away.extra_players[away_kit_id-2].color1;
+            BYTE *radar_color = get_radar_color_addr(away_kit_id, mi, &(mi->away));
             set_kit_info_from_lua_table(L, -1, away_ki, radar_color, NULL);
         }
         lua_pop(L,2);
@@ -2450,7 +2532,7 @@ bool module_set_kits(module_t *m, MATCH_INFO_STRUCT *mi)
     }
     return result;
 }
-*/
+
 char *module_ball_name(module_t *m, char *name)
 {
     char *res = NULL;
@@ -4876,7 +4958,7 @@ char* sider_ball_name(char *ball_name)
 char* sider_stadium_name(STAD_INFO_STRUCT *stad_info, LONGLONG rdx, LONGLONG ptr, SCHEDULE_ENTRY *se)
 {
     if (_config->_lua_enabled) {
-        se = (ptr != 0 && ptr != 1) ? se : NULL;
+        se = NULL; // (ptr != 0 && ptr != 1) ? se : NULL;
         // lua callbacks
         vector<module_t*>::iterator i;
         for (i = _modules.begin(); i != _modules.end(); i++) {
@@ -4903,7 +4985,7 @@ void sider_set_stadium_choice(MATCH_INFO_STRUCT *mi, WORD stadium_choice)
 {
     _stadium_choice_count++;
     mi->stadium_choice = stadium_choice;
-    if (_stadium_choice_count % 2 == 1) {
+    if (1) {//_stadium_choice_count % 2 == 1) {
         if (_config->_lua_enabled) {
             // lua callbacks
             vector<module_t*>::iterator i;
@@ -4954,7 +5036,7 @@ DWORD sider_data_ready(FILE_LOAD_INFO *fli)
 
     return 0;
 }
-/*
+
 void sider_kit_status(KIT_STATUS_INFO *ksi, TASK_UNIFORM_IMPL *tu_impl)
 {
     _ksi = ksi;
@@ -5085,7 +5167,7 @@ void sider_check_kit_choice(MATCH_INFO_STRUCT *mi, DWORD home_or_away)
         }
     }
 }
-*/
+
 BYTE* get_target_location(BYTE *call_location)
 {
     if (call_location) {
@@ -5275,13 +5357,13 @@ void hook_call_rdx_with_head_and_tail_and_moved_call(BYTE *loc, BYTE *p, BYTE *h
         log_(L"hook_call_rdx_with_head_and_tail_and_moved_call: hooked at %p (target: %p)\n", loc, p);
     }
 }
-/*
+
 static int get_team_id(MATCH_INFO_STRUCT *mi, int home_or_away)
 {
     DWORD id_encoded = (home_or_away == 0) ? mi->home.team_id_encoded : mi->away.team_id_encoded;
     return decode_team_id(id_encoded);
 }
-*/
+
 static int sider_context_get_current_team_id(lua_State *L)
 {
     if (!_ksi) {
@@ -5304,7 +5386,7 @@ static int sider_context_get_current_team_id(lua_State *L)
     }
     return 0;
 }
-/*
+
 static int sider_context_get_current_kit_id(lua_State *L)
 {
     int home_or_away = luaL_checkinteger(L, 1);
@@ -5491,7 +5573,8 @@ static int sider_context_set_kit(lua_State *L)
             // if we are to apply radar, then we need to know: home or away
             if (_mi) {
                 TEAM_INFO_STRUCT *ti = (home_or_away == 0) ? &(_mi->home) : &(_mi->away);
-                radar_color = (kit_id < 2) ? ti->players[kit_id].color1 : ti->extra_players[kit_id-2].color1;
+                //radar_color = (kit_id < 2) ? ti->players[kit_id].color1 : ti->extra_players[kit_id-2].color1;
+                radar_color = get_radar_color_addr(kit_id, _mi, ti);
 logu_("set_kit:: _mi ptr: %p\n", _mi);
 logu_("set_kit:: _mi->home ptr: %p\n", &(_mi->home));
 logu_("set_kit:: _mi->away ptr: %p\n", &(_mi->away));
@@ -5506,6 +5589,8 @@ logu_("set_kit:: radar_color ptr: %p\n", radar_color);
             // they are important for color-matching of kits during initial kit selection
             TEAM_INFO_STRUCT *ti = (home_or_away == 0) ? _home_team_info : _away_team_info;
             if (ti && decode_team_id(ti->team_id_encoded) == team_id) {
+                shirt_color = get_radar_color_addr(kit_id, _mi, ti);
+                /**
                 SHIRTCOLOR_STRUCT *scs = NULL;
                 if (kit_id < 2) {
                     scs = &(ti->players[kit_id]);
@@ -5515,6 +5600,7 @@ logu_("set_kit:: radar_color ptr: %p\n", radar_color);
                 }
 
                 shirt_color = scs->color1;
+                **/
             }
             else {
                 logu_("warning: unable to set shirt colors - team_id mismatch or team-info unknown\n");
@@ -5550,7 +5636,7 @@ static int sider_context_set_gk_kit(lua_State *L)
     return 0;
 }
 
-/**
+/*
 static int sider_context_get_shirt_colors(lua_State *L)
 {
     if (!lua_isuserdata(L, 1)) {
@@ -5644,7 +5730,7 @@ static int sider_context_set_shirt_colors(lua_State *L)
     return 0;
 }
 
-
+*/
 static int sider_context_refresh_kit(lua_State *L)
 {
     logu_("refresh_kit:: ~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
@@ -5713,7 +5799,7 @@ static int sider_context_refresh_kit(lua_State *L)
     lua_pop(L, lua_gettop(L));
     return 0;
 }
-*/
+
 static int sider_input_is_blocked(lua_State *L)
 {
     lua_pushboolean(L, _block_input);
@@ -5801,7 +5887,7 @@ static int sider_context_register(lua_State *L)
         _curr_m->evt_set_teams = lua_gettop(_curr_m->L);
         logu_("Registered for \"%s\" event\n", event_key);
     }
-    /*
+
     else if (strcmp(event_key, "set_kits")==0) {
         lua_pushvalue(L, -1);
         lua_xmove(L, _curr_m->L, 1);
@@ -5820,7 +5906,7 @@ static int sider_context_register(lua_State *L)
         _curr_m->evt_set_away_team_for_kits = lua_gettop(_curr_m->L);
         logu_("Registered for \"%s\" event\n", event_key);
     }
-      
+    /*
     else if (strcmp(event_key, "set_tournament_id")==0) {
         lua_pushvalue(L, -1);
         lua_xmove(L, _curr_m->L, 1);
@@ -5985,7 +6071,7 @@ static void push_context_table(lua_State *L)
     lua_newtable(L);
     lua_pushcfunction(L, sider_context_get_current_team_id);
     lua_setfield(L, -2, "get_current_team");
-     /*
+
     lua_pushcfunction(L, sider_context_get_current_kit_id);
     lua_setfield(L, -2, "get_current_kit_id");
     lua_pushcfunction(L, sider_context_get_kit);
@@ -6005,7 +6091,7 @@ static void push_context_table(lua_State *L)
     lua_pushcfunction(L, sider_context_refresh_kit);
     lua_setfield(L, -2, "refresh");
     lua_setfield(L, -2, "kits");
-    */
+
 }
 
 static void push_env_table(lua_State *L, module_t *m)
@@ -6656,7 +6742,7 @@ DWORD install_func(LPVOID thread_param) {
     hook_cache_t hcache(cache_file);
 
     // prepare patterns
-#define NUM_PATTERNS 22
+#define NUM_PATTERNS 28
     BYTE *frag[NUM_PATTERNS+1];
     frag[1] = lcpk_pattern_at_read_file;
     frag[2] = lcpk_pattern_at_get_size;
@@ -6680,6 +6766,12 @@ DWORD install_func(LPVOID thread_param) {
     frag[20] = pattern_xinput;
     frag[21] = pattern_data_ready;
     frag[22] = pattern_call_to_move;
+    frag[23] = pattern_check_kit_choice;
+    frag[24] = pattern_get_uniparam;
+    frag[25] = pattern_kit_status;
+    frag[26] = pattern_set_team_for_kits;
+    frag[27] = pattern_clear_team_for_kits;
+    frag[28] = pattern_uniparam_loaded;
 
     memset(_variations, 0xff, sizeof(_variations));
     _variations[0] = 0;
@@ -6707,6 +6799,12 @@ DWORD install_func(LPVOID thread_param) {
     frag_len[20] = _config->_lua_enabled ? sizeof(pattern_xinput)-1 : 0;
     frag_len[21] = _config->_lua_enabled ? sizeof(pattern_data_ready)-1 : 0;
     frag_len[22] = _config->_lua_enabled ? sizeof(pattern_call_to_move)-1 : 0;
+    frag_len[23] = _config->_lua_enabled ? sizeof(pattern_check_kit_choice)-1 : 0;
+    frag_len[24] = _config->_lua_enabled ? sizeof(pattern_get_uniparam)-1 : 0;
+    frag_len[25] = _config->_lua_enabled ? sizeof(pattern_kit_status)-1 : 0;
+    frag_len[26] = _config->_lua_enabled ? sizeof(pattern_set_team_for_kits)-1 : 0;
+    frag_len[27] = _config->_lua_enabled ? sizeof(pattern_clear_team_for_kits)-1 : 0;
+    frag_len[28] = _config->_lua_enabled ? sizeof(pattern_uniparam_loaded)-1 : 0;
 
     int offs[NUM_PATTERNS+1];
     offs[1] = lcpk_offs_at_read_file;
@@ -6731,6 +6829,12 @@ DWORD install_func(LPVOID thread_param) {
     offs[20] = offs_xinput;
     offs[21] = offs_data_ready;
     offs[22] = offs_call_to_move;
+    offs[23] = offs_check_kit_choice;
+    offs[24] = offs_get_uniparam;
+    offs[25] = offs_kit_status;
+    offs[26] = offs_set_team_for_kits;
+    offs[27] = offs_clear_team_for_kits;
+    offs[28] = offs_uniparam_loaded;
 
     BYTE **addrs[NUM_PATTERNS+1];
     addrs[1] = &_config->_hp_at_read_file;
@@ -6755,6 +6859,12 @@ DWORD install_func(LPVOID thread_param) {
     addrs[20] = &_config->_hp_at_xinput;
     addrs[21] = &_config->_hp_at_data_ready;
     addrs[22] = &_config->_hp_at_call_to_move;
+    addrs[23] = &_config->_hp_at_check_kit_choice;
+    addrs[24] = &_config->_hp_at_get_uniparam;
+    addrs[25] = &_config->_hp_at_kit_status;
+    addrs[26] = &_config->_hp_at_set_team_for_kits;
+    addrs[27] = &_config->_hp_at_clear_team_for_kits;
+    addrs[28] = &_config->_hp_at_uniparam_loaded;
 
     // check hook cache first
     for (int i=0;; i++) {
@@ -6869,6 +6979,12 @@ bool all_found(config_t *cfg) {
         cfg->_hp_at_set_stadium_choice > 0 &&
         cfg->_hp_at_data_ready > 0 &&
         cfg->_hp_at_call_to_move > 0 &&
+        cfg->_hp_at_check_kit_choice > 0 &&
+        cfg->_hp_at_get_uniparam > 0 &&
+        cfg->_hp_at_kit_status > 0 &&
+        cfg->_hp_at_set_team_for_kits > 0 &&
+        cfg->_hp_at_clear_team_for_kits > 0 &&
+        cfg->_hp_at_uniparam_loaded > 0 &&
         true
         );
     }
@@ -6968,6 +7084,7 @@ bool hook_if_all_found() {
             log_(L"sider_set_stadium_choice: %p\n", sider_set_stadium_choice_hk);
             log_(L"sider_data_ready: %p\n", sider_data_ready_hk);
             log_(L"call_to_move at: %p\n", _config->_hp_at_call_to_move);
+            log_(L"sider_check_kit_choice: %p\n", sider_check_kit_choice_hk);
 
             if (_config->_hook_set_team_id) {
                 hook_call_with_tail(_config->_hp_at_set_team_id, (BYTE*)sider_set_team_id_hk,
@@ -7023,6 +7140,16 @@ bool hook_if_all_found() {
                 patch_at_location(_config->_hp_at_call_to_move + 1, (BYTE*)&rel_offs, sizeof(DWORD));
             }
             hook_jmp(_config->_hp_at_data_ready, (BYTE*)sider_data_ready_hk, 0);
+
+            hook_call(_config->_hp_at_check_kit_choice, (BYTE*)sider_check_kit_choice_hk, 0);
+
+            _uniparam_base = get_target_location2(_config->_hp_at_get_uniparam);
+            log_(L"_uniparam_base = %p\n", _uniparam_base);
+
+            hook_call_rdx(_config->_hp_at_kit_status, (BYTE*)sider_kit_status_hk, 2);
+            hook_call_rcx(_config->_hp_at_set_team_for_kits, (BYTE*)sider_set_team_for_kits_hk, 2);
+            hook_call(_config->_hp_at_clear_team_for_kits, (BYTE*)sider_clear_team_for_kits_hk, 5);
+            hook_call_rdx(_config->_hp_at_uniparam_loaded, (BYTE*)sider_loaded_uniparam_hk, 0);
 
             log_(L"-------------------------------\n");
         }

@@ -100,6 +100,12 @@ public:
     BYTE *_hp_at_set_stadium_choice;
     BYTE *_hp_at_data_ready;
     BYTE *_hp_at_call_to_move;
+    BYTE *_hp_at_check_kit_choice;
+    BYTE *_hp_at_get_uniparam;
+    BYTE *_hp_at_kit_status;
+    BYTE *_hp_at_set_team_for_kits;
+    BYTE *_hp_at_clear_team_for_kits;
+    BYTE *_hp_at_uniparam_loaded;
 
     BYTE *_hp_at_create_swapchain;
     BYTE *_hp_at_xinput;
@@ -168,6 +174,12 @@ public:
                  _hp_at_set_stadium_choice(NULL),
                  _hp_at_data_ready(NULL),
                  _hp_at_call_to_move(NULL),
+                 _hp_at_check_kit_choice(NULL),
+                 _hp_at_get_uniparam(NULL),
+                 _hp_at_kit_status(NULL),
+                 _hp_at_set_team_for_kits(NULL),
+                 _hp_at_clear_team_for_kits(NULL),
+                 _hp_at_uniparam_loaded(NULL),
                  _hook_set_team_id(true),
                  _hook_set_settings(true),
                  _hook_context_reset(true),

@@ -139,7 +139,7 @@ static BYTE pattern_trophy_table[18] =
     "\x48\x8b\x8d\x50\x08\x00\x00"
     "\x48\x33\xcc";
 static int offs_trophy_table = 30;
-/*
+
 /*
 0000000140A0DF3C | 48 89 8B 84 00 00 00                 | mov qword ptr ds:[rbx+84],rcx           |
 0000000140A0DF43 | 48 C7 83 AC 59 01 00 FF FF FF FF     | mov qword ptr ds:[rbx+159AC],FFFFFFFFFF |
@@ -374,5 +374,79 @@ static BYTE pattern_set_edit_team_id[20] =
     "\x75\x09"
     "\xc7\x41\x20\x00\x00\x0d\x00";
 static int offs_set_edit_team_id = 54;
+
+
+/*
+0000000140B9F307 | 49 89 06                  | mov qword ptr ds:[r14],rax           | rax:EntryPoint
+0000000140B9F30A | 41 C6 47 FE 01            | mov byte ptr ds:[r15-2],1            |
+0000000140B9F30F | 41 C6 07 00               | mov byte ptr ds:[r15],0              |
+0000000140B9F313 | 8B D3                     | mov edx,ebx                          |
+0000000140B9F315 | 48 8B CF                  | mov rcx,rdi                          |
+*/
+static BYTE pattern_check_kit_choice[13] =
+    "\x49\x89\x06"
+    "\x41\xc6\x47\xfe\x01"
+    "\x41\xc6\x07\x00";
+static int offs_check_kit_choice = 3;
+
+/*
+Find the code location where the "base addr" is read, and remember this addr.
+Look for this code sequence:
+
+0000000141D0B86D | 4D 85 FF                        | test r15,r15                       |
+0000000141D0B870 | 75 23                           | jne pes2019.141D0B895              |
+0000000141D0B872 | 48 83 7D 60 10                  | cmp qword ptr ss:[rbp+60],10       |
+0000000141D0B877 | 72 17                           | jb pes2019.141D0B890               |
+0000000141D0B879 | C7 44 24 60 02 00 00 00         | mov dword ptr ss:[rsp+60],2        |
+*/
+static BYTE pattern_get_uniparam[21] =
+    "\x4d\x85\xff"
+    "\x75\x23"
+    "\x48\x83\x7d\x60\x10"
+    "\x72\x17"
+    "\xc7\x44\x24\x60\x02\x00\x00\x00";
+static int offs_get_uniparam = -4;
+
+/*
+00000001505F09CC | 44 0F B6 4B 4E                     | movzx r9d,byte ptr ds:[rbx+4E]       |
+00000001505F09D1 | 44 0F B6 43 4D                     | movzx r8d,byte ptr ds:[rbx+4D]       |
+00000001505F09D6 | 0F B6 53 4C                        | movzx edx,byte ptr ds:[rbx+4C]       |
+*/
+static BYTE pattern_kit_status[15] =
+    "\x44\x0f\xb6\x4b\x4e"
+    "\x44\x0f\xb6\x43\x4d"
+    "\x0f\xb6\x53\x4c";
+static int offs_kit_status = 0;
+
+/*
+0000000141BC3EFF | 33 D0                        | xor edx,eax                          |
+0000000141BC3F01 | 81 E2 FF 3F 00 00            | and edx,3FFF                         |
+0000000141BC3F07 | 33 D0                        | xor edx,eax                          |
+0000000141BC3F09 | 41 89 51 10                  | mov dword ptr ds:[r9+10],edx         |  set team id (edit mode?)
+*/
+static BYTE pattern_set_team_for_kits[15] =
+    "\x33\xd0"
+    "\x81\xe2\xff\x3f\x00\x00"
+    "\x33\xd0"
+    "\x41\x89\x51\x10";
+static int offs_set_team_for_kits = 0;
+
+/*
+0000000141BC4F1D | 89 4A FC                     | mov dword ptr ds:[rdx-4],ecx         |  clear (reset) team id (for kits)
+0000000141BC4F20 | C7 42 18 FF FF 00 00         | mov dword ptr ds:[rdx+18],FFFF       |
+0000000141BC4F27 | C7 42 30 FF FF FF FF         | mov dword ptr ds:[rdx+30],FFFFFFFF   |
+*/
+static BYTE pattern_clear_team_for_kits[18] =
+    "\x89\x4a\xfc"
+    "\xc7\x42\x18\xff\xff\x00\x00"
+    "\xc7\x42\x30\xff\xff\xff\xff";
+static int offs_clear_team_for_kits = 0;
+
+static BYTE pattern_uniparam_loaded[19] =
+    "\x48\x89\x46\x40"
+    "\xc6\x46\x62\x01"
+    "\x48\x8b\x5c\x24\x48"
+    "\x48\x8b\x74\x24\x50";
+static int offs_uniparam_loaded = -(0x81e - 0x7ee - 8);
 
 #endif

@@ -21,6 +21,11 @@ extern sider_def_stadium_name:proc
 extern sider_set_stadium_choice:proc
 extern sider_data_ready:proc
 extern sider_before_create_swapchain:proc
+extern sider_check_kit_choice:proc
+extern sider_kit_status:proc
+extern sider_set_team_for_kits:proc
+extern sider_clear_team_for_kits:proc
+extern sider_loaded_uniparam:proc
 
 .code
 sider_read_file_hk proc
@@ -342,5 +347,130 @@ sider_create_swapchain_hk proc
         ret
 
 sider_create_swapchain_hk endp
+
+sider_check_kit_choice_hk proc
+
+        push    rcx
+        push    rdx
+        push    r8
+        push    r9
+        push    r10
+        push    r11
+        push    r15
+        sub     rsp,20h
+        mov     rcx,rdi   ;mis - match info struct
+        mov     rdx,rbx   ;0/1 - home/away
+        call    sider_check_kit_choice
+        add     rsp,20h
+        pop     r15
+        mov     byte ptr [r15-2],1
+        mov     byte ptr [r15],0
+        pop     r11
+        pop     r10
+        pop     r9
+        pop     r8
+        pop     rdx
+        pop     rcx
+        ret
+
+sider_check_kit_choice_hk endp
+
+sider_kit_status_hk proc
+
+        push    rcx
+        push    r10
+        push    r11
+        push    rax
+        sub     rsp,28h
+        mov     rcx,rbx
+        mov     rdx,rax
+        call    sider_kit_status
+        movzx   r9d, byte ptr [rbx+4eh]
+        movzx   r8d, byte ptr [rbx+4dh]
+        movzx   rdx, byte ptr [rbx+4ch]
+        add     rsp,28h
+        pop     rax
+        pop     r11
+        pop     r10
+        pop     rcx
+        ret
+
+sider_kit_status_hk endp
+
+sider_set_team_for_kits_hk proc
+
+        push    r8
+        push    r9
+        push    r10
+        push    r11
+        sub     rsp,28h
+        xor     edx,eax
+        and     edx,3fffh
+        xor     edx,eax
+        mov     dword ptr [r9+10h],edx
+        mov     rcx,rbx
+        add     r9,10h
+        call    sider_set_team_for_kits
+        mov     rcx,3fffh
+        add     rsp,28h
+        pop     r11
+        pop     r10
+        pop     r9
+        pop     r8
+        ret
+
+sider_set_team_for_kits_hk endp
+
+sider_clear_team_for_kits_hk proc
+
+        push    rcx
+        push    rdx
+        push    r8
+        push    r9
+        push    r10
+        push    r11
+        sub     rsp,20h
+        mov     dword ptr [rdx-4h],ecx
+        mov     dword ptr [rdx+18h],0ffffh
+        mov     dword ptr [rdx+30h],0ffffffffh
+        mov     rcx,rbx
+        sub     rdx,4
+        call    sider_clear_team_for_kits
+        add     rsp,20h
+        pop     r11
+        pop     r10
+        pop     r9
+        pop     r8
+        pop     rdx
+        pop     rcx
+        ret
+
+sider_clear_team_for_kits_hk endp
+
+sider_loaded_uniparam_hk proc
+
+        push    rcx
+        push    rdx
+        push    r8
+        push    r9
+        push    r10
+        push    r11
+        sub     rsp,28h
+        mov     rcx,rax
+        call    sider_loaded_uniparam
+        mov     [rsi+38h],rax
+        add     rsp,28h
+        pop     r11
+        pop     r10
+        pop     r9
+        pop     r8
+        pop     rdx
+        pop     rcx
+        xor     r8d,r8d
+        lea     edx,qword ptr [r8+20h]
+        lea     rcx,qword ptr [rsp+48h]
+        ret
+
+sider_loaded_uniparam_hk endp
 
 end

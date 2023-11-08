@@ -17,6 +17,7 @@ struct KIT_STATUS_INFO {
     struct TASK_UNIFORM_IMPL *task_uniform_impl;
     DWORD home_team_id_encoded;
     DWORD away_team_id_encoded;
+    DWORD unknown1;
     BYTE home_player_kit_id;
     BYTE home_player_unknown[3];
     BYTE home_gk_kit_id;
@@ -50,6 +51,7 @@ struct TASK_UNIFORM_IMPL {
     DWORD away_team_id_encoded;
     DWORD home_team_id_encoded_again;
     DWORD away_team_id_encoded_again;
+    DWORD unknown4;
     BYTE home_player_kit_id;
     BYTE home_player_unknown[3];
     BYTE home_gk_kit_id;
@@ -81,15 +83,13 @@ struct KIT_INTERMED_STRUCT {
 
 struct KIT_HELPER_STRUCT {
     BYTE **vtable;
-    BYTE unknown1[0x54];
+    BYTE unknown1[0x4c];
     BYTE is_goalkeeper;
     BYTE unknown2[3];
-    BYTE unknown3[0x10];
-    BYTE unknown4[0x34];
-    BYTE unknown5;
-    BYTE unknown6;
+    DWORD player_number;
+    BYTE player_name[0x10];
+    BYTE unknown4;
     BYTE change_flag;
-    BYTE unknown7;
 };
 
 #endif
