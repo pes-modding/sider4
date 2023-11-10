@@ -315,7 +315,7 @@ const char *_context_fields[] = {
     "match_id", "match_info", "match_leg", "match_time",
     "away_team", "home_team", "stadium_choice", "stadium",
     "weather", "weather_effects", "timeofday", "season",
-    "tournament_id",
+    "tournament_id", "game_mode",
 };
 size_t _context_fields_count = sizeof(_context_fields)/sizeof(const char *);
 
@@ -4797,6 +4797,7 @@ void sider_set_team_id(DWORD *dest, TEAM_INFO_STRUCT *team_info, DWORD offset)
         else {
             _tournament_id = mi->tournament_id_encoded;
             set_context_field_int("tournament_id", mi->tournament_id_encoded);
+            set_context_field_int("game_mode", mi->game_mode);
             set_match_info(mi);
 
             DWORD home = decode_team_id(*(DWORD*)((BYTE*)dest - 0x520));
