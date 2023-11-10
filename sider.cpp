@@ -2454,23 +2454,23 @@ BYTE* get_radar_color_addr(int kit_id, MATCH_INFO_STRUCT *mi, TEAM_INFO_STRUCT *
     BYTE add = use_euro_kit(mi)?1:0;
     BYTE index = (kit_id << 4) + add;
     for (int j=0; j<2; j++) {
-        logu_("get_radar_color_addr: searching for index: 0x%02x ...\n", index);
+        //logu_("get_radar_color_addr: searching for index: 0x%02x ...\n", index);
         for (int i=0; i<2; i++) {
-            logu_("get_radar_color_addr: index = 0x%02x\n", ti->players[i].index);
+            //logu_("get_radar_color_addr: index = 0x%02x\n", ti->players[i].index);
             if (ti->players[i].index == index) {
-                logu_("get_radar_color_addr: got %p\n", ti->players[i].color1);
+                //logu_("get_radar_color_addr: got %p\n", ti->players[i].color1);
                 return ti->players[i].color1;
             }
         }
         logu_("get_radar_color_addr: index = 0x%02x\n", ti->goalkeepers[0].index);
         if (ti->goalkeepers[0].index == index) {
-            logu_("get_radar_color_addr: got %p\n", ti->goalkeepers[0].color1);
+            //logu_("get_radar_color_addr: got %p\n", ti->goalkeepers[0].color1);
             return ti->goalkeepers[0].color1;
         }
         for (int i=0; i<7; i++) {
-            logu_("get_radar_color_addr: index = 0x%02x\n", ti->extra_players[i].index);
+            //logu_("get_radar_color_addr: index = 0x%02x\n", ti->extra_players[i].index);
             if (ti->extra_players[i].index == index) {
-                logu_("get_radar_color_addr: got %p\n", ti->extra_players[i].color1);
+                //logu_("get_radar_color_addr: got %p\n", ti->extra_players[i].color1);
                 return ti->extra_players[i].color1;
             }
         }
