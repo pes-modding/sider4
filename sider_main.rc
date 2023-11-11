@@ -19,7 +19,7 @@ BEGIN
 		BEGIN
 			VALUE "FileDescription", "Sider: toolbox for PES\0"
 			VALUE "FileVersion", "4.2.0.1\0"
-			VALUE "LegalCopyright", "Copyright © 2014-2023 Juce, MJTS-104914\0"
+			VALUE "LegalCopyright", "Copyright © 2014-2023 Juce, MJTS-140914\0"
 			VALUE "Comments", "Sider.\r\n\
 This tool allows you to freely select sides when\
 playing competition matches in  Pro Evolution Soccer. Also, \
