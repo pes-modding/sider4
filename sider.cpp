@@ -1385,7 +1385,7 @@ static BYTE* dummify_uniparam(BYTE *uniparam, size_t sz, size_t *new_sz)
     logu_("uniparam:: step 1: reading existing structure...\n");
 
     DWORD numItems = *(DWORD*)(uniparam);
-    logu_("numItems = %08x\n", numItems);
+    logu_("numItems = %d (0x%08x)\n", numItems, numItems);
     DWORD sec3start = *(DWORD*)(uniparam+4);
     DWORD sec3end = sec3start + numItems * 0x0c;
     for (DWORD offs = sec3start; offs != sec3end; offs += 0x0c ) {

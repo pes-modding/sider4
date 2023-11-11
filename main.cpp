@@ -23,7 +23,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             // Exit the application when the window closes
             append_to_log_(L"WindowProc:: uMsg=0x%x\n", uMsg);
             unsetHook();
-            append_to_log_(L"WindowProc:: sider exiting\n");
+            append_to_log_(L"WindowProc:: sider executable exiting\n");
             PostQuitMessage(0);
             return true;
     }
