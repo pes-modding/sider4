@@ -214,71 +214,69 @@ static int offs_stadium_name = 28;
 static BYTE pattern_stadium_name_head[3] = "\x50\x50";
 static BYTE pattern_stadium_name_tail[4] = "\x58\x58\x90";
 
-
 /*
-00000001412AEF45 | 44 0F B6 80 16 03 00 00          | movzx r8d,byte ptr ds:[rax+316]         |
-00000001412AEF4D | 41 3B E8                         | cmp ebp,r8d                             |
-00000001412AEF50 | 75 2C                            | jne pes2018.1412AEF7E                   |
-00000001412AEF52 | 80 78 50 00                      | cmp byte ptr ds:[rax+50],0              |
-00000001412AEF56 | 48 8D 50 50                      | lea rdx,qword ptr ds:[rax+50]           | rdx:EntryPoint
-00000001412AEF5A | 75 05                            | jne pes2018.1412AEF61                   |
-00000001412AEF5C | 45 33 C0                         | xor r8d,r8d                             |
-00000001412AEF5F | EB 0E                            | jmp pes2018.1412AEF6F                   |
-00000001412AEF61 | 49 83 C8 FF                      | or r8,FFFFFFFFFFFFFFFF                  |
-00000001412AEF65 | 49 FF C0                         | inc r8                                  |
-00000001412AEF68 | 42 80 3C 02 00                   | cmp byte ptr ds:[rdx+r8],0              |
-00000001412AEF6D | 75 F6                            | jne pes2018.1412AEF65                   |
-00000001412AEF6F | 48 8B CE                         | mov rcx,rsi                             |
-00000001412AEF72 | E8 E9 13 1F FF                   | call pes2018.1404A0360                  |
-00000001412AEF77 | 48 83 7E 10 00                   | cmp qword ptr ds:[rsi+10],0             |
-00000001412AEF7C | 75 3A                            | jne pes2018.1412AEFB8                   |
-00000001412AEF7E | E8 FD 59 FB FF                   | call pes2018.141264980                  |
-00000001412AEF83 | 0F B7 D5                         | movzx edx,bp                            |
-00000001412AEF86 | 48 8B 48 40                      | mov rcx,qword ptr ds:[rax+40]           |
-00000001412AEF8A | E8 F1 A5 FB FF                   | call pes2018.141269580                  |
-00000001412AEF8F | 48 85 C0                         | test rax,rax                            | rax:EntryPoint
-00000001412AEF92 | 74 12                            | je pes2018.1412AEFA6                    |
+00000001412AE875 | 44:0FB680 16030000              | movzx r8d,byte ptr ds:[rax+316]         |
+00000001412AE87D | 41:3BE8                         | cmp ebp,r8d                             |
+00000001412AE880 | 75 2C                           | jne pes2018.1412AE8AE                   |
+00000001412AE882 | 8078 50 00                      | cmp byte ptr ds:[rax+50],0              |
+00000001412AE886 | 48:8D50 50                      | lea rdx,qword ptr ds:[rax+50]           |
+00000001412AE88A | 75 05                           | jne pes2018.1412AE891                   |
+00000001412AE88C | 45:33C0                         | xor r8d,r8d                             |
+00000001412AE88F | EB 0E                           | jmp pes2018.1412AE89F                   |
+00000001412AE891 | 49:83C8 FF                      | or r8,FFFFFFFFFFFFFFFF                  |
+00000001412AE895 | 49:FFC0                         | inc r8                                  |
+00000001412AE898 | 42:803C02 00                    | cmp byte ptr ds:[rdx+r8],0              |
+00000001412AE89D | 75 F6                           | jne pes2018.1412AE895                   |
+00000001412AE89F | 48:8BCE                         | mov rcx,rsi                             |
+00000001412AE8A2 | E8 E90F1FFF                     | call pes2018.14049F890                  |
+00000001412AE8A7 | 48:837E 10 00                   | cmp qword ptr ds:[rsi+10],0             |
+00000001412AE8AC | 75 3A                           | jne pes2018.1412AE8E8                   |
+00000001412AE8AE | E8 0D57FBFF                     | call pes2018.141263FC0                  |
+00000001412AE8B3 | 0FB7D5                          | movzx edx,bp                            |
+00000001412AE8B6 | 48:8B48 40                      | mov rcx,qword ptr ds:[rax+40]           |
+00000001412AE8BA | E8 01A3FBFF                     | call pes2018.141268BC0                  |
 
-00000001412AEF94 | 4C 8B C6                         | mov r8,rsi                              |
-00000001412AEF97 | BA 01 00 00 00                   | mov edx,1                               |
-00000001412AEF9C | 48 8B C8                         | mov rcx,rax                             | rax:EntryPoint
-00000001412AEF9F | E8 4C 13 FD FF                   | call pes2018.1412802F0                  |
-00000001412AEFA4 | EB 12                            | jmp pes2018.1412AEFB8                   |
-00000001412AEFA6 | 45 33 C0                         | xor r8d,r8d                             |
-00000001412AEFA9 | 48 8D 15 A7 FD 14 01             | lea rdx,qword ptr ds:[1423FED57]        | rdx:EntryPoint
-00000001412AEFB0 | 48 8B CE                         | mov rcx,rsi                             |
+was:
+00000001412AE8BF | 48:85C0                         | test rax,rax                            |
+00000001412AE8C2 | 74 12                           | je pes2018.1412AE8D6                    |
+00000001412AE8C4 | 4C:8BC6                         | mov r8,rsi                              |
+00000001412AE8C7 | BA 01000000                     | mov edx,1                               |
+00000001412AE8CC | 48:8BC8                         | mov rcx,rax                             |
+00000001412AE8CF | E8 CC10FDFF                     | call pes2018.14127F9A0                  |
+00000001412AE8D4 | EB 12                           | jmp pes2018.1412AE8E8                   |
+00000001412AE8D6 | 45:33C0                         | xor r8d,r8d                             |
+00000001412AE8D9 | 48:8D15 66041501                | lea rdx,qword ptr ds:[1423FED46]        |
+00000001412AE8E0 | 48:8BCE                         | mov rcx,rsi                             |
+00000001412AE8E3 | E8 A80F1FFF                     | call pes2018.14049F890                  |
+00000001412AE8E8 | 48:8B5C24 30                    | mov rbx,qword ptr ss:[rsp+30]           |
 
-static BYTE pattern_def_stadium_name[9] = //[17] =
-    "\x44\x0f\xb6\x80\xda\x03\x00\x00";
-    //"\x44\x39\xc5"
-    //"\x75\x3a"
-    //"\x48\x89\xc1";
-static int offs_def_stadium_name = 0x5b;
-static BYTE pattern_def_stadium_name_head[3] = "\x75\x0c";
-static BYTE pattern_def_stadium_name_tail[15] =
-    "\x48\x8b\xd6"
-    "\x48\x8b\xc8"
-    "\xe8\x00\x00\x00\x00"
-    "\xeb\x06"
-    "\x90";
-static int def_stadium_name_moved_call_offs_old = 0x08;
-static int def_stadium_name_moved_call_offs_new = 0x14;
-
+becomes:
+00000001412AE8BF | 48:85C0                         | test rax,rax                            |
+00000001412AE8C2 | 75 0C                           | jne pes2018.1412AE8D0                   |
+00000001412AE8C4 | 48:BA 4D9C0AA4FE7F0000          | mov rdx,sider.7FFEA40A9C4D              |
+00000001412AE8CE | FFD2                            | call rdx                                |
+00000001412AE8D0 | 4C:8BC6                         | mov r8,rsi                              |
+00000001412AE8D3 | BA 01000000                     | mov edx,1                               |
+00000001412AE8D8 | 48:8BC8                         | mov rcx,rax                             |
+00000001412AE8DB | E8 C010FDFF                     | call pes2018.14127F9A0                  |
+00000001412AE8E0 | EB 06                           | jmp pes2018.1412AE8E8                   |
+00000001412AE8E2 | 90                              | nop                                     |
+00000001412AE8E3 | E8 A80F1FFF                     | call pes2018.14049F890                  |
+00000001412AE8E8 | 48:8B5C24 30                    | mov rbx,qword ptr ss:[rsp+30]           |
 */
-
-
 static BYTE pattern_def_stadium_name[9] =
     "\x44\x0f\xb6\x80\x16\x03\x00\x00";
 static int offs_def_stadium_name = 0x4d;
 static BYTE pattern_def_stadium_name_head[3] = "\x75\x0c";
-static BYTE pattern_def_stadium_name_tail[15] =
-    "\x48\x8b\xd6"
+static BYTE pattern_def_stadium_name_tail[20] =
+    "\x4c\x8b\xc6"
+    "\xba\x01\x00\x00\x00"
     "\x48\x8b\xc8"
     "\xe8\x00\x00\x00\x00"
     "\xeb\x06"
     "\x90";
 static int def_stadium_name_moved_call_offs_old = 0xd;
-static int def_stadium_name_moved_call_offs_new = 0x17;
+static int def_stadium_name_moved_call_offs_new = 0x19;
 
 /*
 00000001409D0C3D | 0FB693 00010000          | movzx edx,byte ptr ds:[rbx+100]         |
@@ -301,18 +299,21 @@ static int def_stadium_name_moved_call_offs_new = 0x17;
 000000014126FA7E | CC                       | int3                                    |
 000000014126FA7F | CC                       | int3                                    |
 */
-
-
 static BYTE pattern_set_stadium_choice[20] =
     "\x0f\xb6\x93\x00\x01\x00\x00"
     "\x48\x8b\x48\x48"
     "\x48\x81\xc1\xa8\x12\x03\x00"
     "\xe8";
 static int offs_set_stadium_choice = 18;
+
 /*
-00000001418908FE | 48 8D 54 24 40              | lea rdx,qword ptr ss:[rsp+40]           |
-0000000141890903 | 66 89 44 24 42              | mov word ptr ss:[rsp+42],ax             |
-0000000141890908 | E8 CF 24 AC FF              | call <JMP.&XInputSetState>              |
+0000000140496D97 | FF50 10                         | call qword ptr ds:[rax+10]              |
+0000000140496D9A | 8B4B 0C                         | mov ecx,dword ptr ds:[rbx+C]            |
+0000000140496D9D | 48:8D55 B8                      | lea rdx,qword ptr ss:[rbp-48]           |
+0000000140496DA1 | E8 E0B2EB00                     | call <JMP.&XInputGetState>              |
+...
+0000000141352086 | FF25 F406BB0B                   | jmp qword ptr ds:[<&XInputGetState>]    |
+000000014135208C | FF25 DE06BB0B                   | jmp qword ptr ds:[<&XInputSetState>]    |
 */
 static BYTE pattern_xinput[12] =
     "\xff\x50\x10"
@@ -320,6 +321,7 @@ static BYTE pattern_xinput[12] =
     "\x48\x8d\x55\xb8"
     "\xe8";
 static int offs_xinput = 11;
+
 /*
 000000014000E6EB | C743 18 07000000         | mov dword ptr ds:[rbx+18],7             |
 000000014000E6F2 | 8943 6C                  | mov dword ptr ds:[rbx+6C],eax           |

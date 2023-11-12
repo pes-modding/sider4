@@ -173,7 +173,7 @@ struct MATCH_INFO_STRUCT {
     BYTE match_time;
     BYTE unknown3[3];
     DWORD unknown4[4];
-    BYTE db0x03; // number of subs
+    BYTE num_subs;
     BYTE db0x17;
     BYTE stadium_choice;
     BYTE unknown5;
@@ -4154,6 +4154,7 @@ void HookXInputGetState()
 {
     log_(L"XInputGetState: %p\n", XInputGetState);
     BYTE *jmp_xinput_get_state = get_target_location2(_config->_hp_at_xinput);
+    log_(L"jmp_xinput_get_state: %p\n", jmp_xinput_get_state);
     if (jmp_xinput_get_state) {
         _xinput_get_state_holder = (BYTE**)get_target_location(jmp_xinput_get_state);
         log_(L"xinput_get_state_holder: %p\n", _xinput_get_state_holder);
@@ -4819,7 +4820,7 @@ void sider_set_team_id(DWORD *dest, TEAM_INFO_STRUCT *team_info, DWORD offset)
 void sider_set_settings(STAD_STRUCT *dest_ss, STAD_STRUCT *src_ss)
 {
     MATCH_INFO_STRUCT *mi = (MATCH_INFO_STRUCT*)((BYTE*)dest_ss - 0x68);
-    bool ok = mi && (mi->db0x03 == 0x03) && (mi->db0x17 == 0x17 || mi->db0x17 == 0x12);
+    bool ok = mi && (mi->num_subs >= 0 && mi->num_subs <= 11) && (mi->db0x17 >= 0x10 && mi->db0x17 < 0x20);
     if (!ok) {
         // safety check
         return;
@@ -4985,7 +4986,10 @@ STAD_INFO_STRUCT* sider_def_stadium_name(DWORD stadium_id)
 void sider_set_stadium_choice(MATCH_INFO_STRUCT *mi, WORD stadium_choice)
 {
     _stadium_choice_count++;
+    DBG(16) logu_("set_stadium_choice: mi->stadium_choice=%d, stadium_choice=%d\n", mi->stadium_choice, stadium_choice);
+    bool just_updated = (mi->stadium_choice != stadium_choice);
     mi->stadium_choice = stadium_choice;
+    //if (!just_updated) {//_stadium_choice_count % 2 == 1) {
     if (1) {//_stadium_choice_count % 2 == 1) {
         if (_config->_lua_enabled) {
             // lua callbacks
@@ -7115,7 +7119,7 @@ bool hook_if_all_found() {
             hook_call_with_head_and_tail(_config->_hp_at_stadium_name, (BYTE*)sider_stadium_name_hk,
                 (BYTE*)pattern_stadium_name_head, sizeof(pattern_stadium_name_head)-1,
                 (BYTE*)pattern_stadium_name_tail, sizeof(pattern_stadium_name_tail)-1);
-            /*
+
             BYTE *old_moved_call = _config->_hp_at_def_stadium_name + def_stadium_name_moved_call_offs_old;
             BYTE *new_moved_call = _config->_hp_at_def_stadium_name + def_stadium_name_moved_call_offs_new;
             hook_call_rdx_with_head_and_tail_and_moved_call(
@@ -7123,17 +7127,16 @@ bool hook_if_all_found() {
                 (BYTE*)pattern_def_stadium_name_head, sizeof(pattern_def_stadium_name_head)-1,
                 (BYTE*)pattern_def_stadium_name_tail, sizeof(pattern_def_stadium_name_tail)-1,
                 old_moved_call, new_moved_call);
-            */
+
             BYTE *call_target = get_target_location2(_config->_hp_at_set_stadium_choice + 1);
             if (call_target) {
                 hook_jmp(call_target, (BYTE*)sider_set_stadium_choice_hk, 0);
             }
 
-            /*
             if (_config->_overlay_enabled && _config->_controller_input_blocking_enabled) {
                 HookXInputGetState();
             }
-            */
+
             if (*(BYTE*)(_config->_hp_at_data_ready + 11) != 0xcc) {
                 // there is no extra 0xcc byte (at offset+12), so we need to move code
                 move_code(_config->_hp_at_data_ready + 11, 1, 7);
