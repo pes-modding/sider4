@@ -4987,10 +4987,11 @@ void sider_set_stadium_choice(MATCH_INFO_STRUCT *mi, WORD stadium_choice)
 {
     _stadium_choice_count++;
     DBG(16) logu_("set_stadium_choice: mi->stadium_choice=%d, stadium_choice=%d\n", mi->stadium_choice, stadium_choice);
-    bool just_updated = (mi->stadium_choice != stadium_choice);
+    bool random_or_home_selected = ((mi->stadium_choice == 253 || mi->stadium_choice == 254) && stadium_choice < 253);
     mi->stadium_choice = stadium_choice;
-    //if (!just_updated) {//_stadium_choice_count % 2 == 1) {
-    if (1) {//_stadium_choice_count % 2 == 1) {
+    // for backwards compatibility reasons: we do not fire "set_stadium_choice" event
+    // in the case when the game just selected a random or home stadium.
+    if (!random_or_home_selected) {
         if (_config->_lua_enabled) {
             // lua callbacks
             vector<module_t*>::iterator i;
@@ -6990,6 +6991,7 @@ bool all_found(config_t *cfg) {
         cfg->_hp_at_set_team_for_kits > 0 &&
         cfg->_hp_at_clear_team_for_kits > 0 &&
         cfg->_hp_at_uniparam_loaded > 0 &&
+        cfg->_hp_at_xinput > 0 &&
         true
         );
     }

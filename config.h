@@ -155,6 +155,7 @@ public:
                  _rewrite_cache_ttl_sec(10),
                  _cache_size(DEFAULT_CACHE_SIZE),
                  _hp_at_create_swapchain(NULL),
+                 _hp_at_xinput(NULL),
                  _hp_at_read_file(NULL),
                  _hp_at_get_size(NULL),
                  _hp_at_extend_cpk(NULL),
