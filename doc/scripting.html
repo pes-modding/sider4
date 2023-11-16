@@ -51,6 +51,7 @@ table.inputs tr td.right,th.right { border-right: 1px solid #888; }
 <li><a href="#env">Module environment</a></li>
 <li><a href="#input">Input library</a></li>
 <li><a href="#memory">Memory library</a></li>
+<li><a href="#fs">File system library (fs)</a></li>
 <li><a href="#zlib">Zlib library</a></li>
 <li><a href="#audio">Audio library</a></li>
 </ol>
@@ -226,9 +227,9 @@ selection of the stadium is made (right after the
 field get removed from the context.<br /><br />
 Special values:
 <ul>
-<li>65533 - home stadium</li>
-<li>65534 - random stadium</li>
-<li>65535 - not chosen yet</li>
+<li>253 - home stadium</li>
+<li>254 - random stadium</li>
+<li>255 - not chosen yet</li>
 </ul>
 </td>
 </tr>
@@ -514,6 +515,26 @@ containing the changed attributes. (For more information on this, consult
 the "Kitserver 2020" thread on EvoWeb forums)</p>
 
 <p class="evthdr">
+Event name: <span class="evt">"set_home_team_for_kits"</span><br />
+Handler function: <span class="func">f(ctx, team_id, is_edit_mode)</span><br />
+Return value expected: <span class="file">nil</span>.
+</p>
+
+<p>This event fires when a home team is selected for loading of kits which happens soon after.
+The 3rd parameter (boolean) indicates whether we are in Edit Mode or not.</p>
+
+<p class="evthdr">
+Event name: <span class="evt">"set_away_team_for_kits"</span><br />
+Handler function: <span class="func">f(ctx, team_id, is_edit_mode)</span><br />
+Return value expected: <span class="file">nil</span>.
+</p>
+
+<p>This event fires when an away team is selected for loading of kits which happens soon after.
+The 3rd parameter (boolean) indicates whether we are in Edit Mode or not.<br/>
+(NOTE: the "is_edit_mode" is always false for this function, as there is always only a "Home" team
+in Edit Mode.)</p>
+
+<p class="evthdr">
 Event name: <span class="evt">"set_match_time"</span><br />
 Handler function: <span class="func">f(ctx, minutes)</span><br />
 Return value expected: <span class="file">nil</span> or <span class="file">integer</span>
@@ -536,8 +557,8 @@ or when it is entering pre-game menus of non-exhibition modes. In addition
 to the actual id of the stadium chosen, the "stadium_id" parameter may have
 the following special values:
 <ul>
-<li>65533 : home stadium</li>
-<li>65534 : random stadium</li>
+<li>253 : home stadium</li>
+<li>254 : random stadium</li>
 </ul>
 </p>
 
@@ -635,7 +656,7 @@ characters.</p>
 
 <p class="evthdr">
 Event name: <span class="evt">"get_stadium_name"</span><br />
-Handler function: <span class="func">f(ctx, stadium_name, stadium_id, schedule_entry)</span><br />
+Handler function: <span class="func">f(ctx, stadium_name, stadium_id)</span><br />
 Return value expected: <span class="file">nil</span> or string
 </p>
 
@@ -645,21 +666,6 @@ You handler function can change it, if it returns a string instead of nil.
 information - for which stadium the name is being read/modified)
 The string needs to be in UTF-8 encoding to correctly render non-ASCII
 characters.</p>
-
-<p>The last parameter - <span class="func">schedule_entry</span> - is new in sider 6.3.4. It is set to
-<span class="file">nil</span> in all usual scenarios where stadium name is chosen, except for the case when
-a Master League screen shows a small fragment of the schedule (schedule bar) with
-the 4 matches: 1 that just happened, and 3 in the future. This is new in PES 2020
-Master League (was not there in PES 2019). In this use-case the "get_stadium_name" event fires for each of
-those 4 matches, and the <span class="func">schedule_entry</span> parameter is a table that contains
-information about the corresponding match as its keys:
-<ul>
-<li>tournament_id</li>
-<li>match_info</li>
-<li>home_team</li>
-<li>away_team</li>
-</ul>
-</p>
 
 <p class="evthdr">
 Event name: <span class="evt">"trophy_rewrite"</span><br />
@@ -1117,8 +1123,63 @@ Returns 2 values:
 
 
 <a class="top" href="#">Top</a>
+<a name="fs">
+<h3>9. File system library (fs)</h3>
+</a>
+
+<p>The "fs" library provides utility functions that are
+unavailable in standard Lua, but are useful when dealing with files and directories.</p>
+
+<p class="func">
+fs.find_files(pattern)
+</p>
+
+<p class="desc">Searches for files that match the given wildcard pattern.<br />
+Return value: An iterator object that yields a pair of strings on each iteration: a filename and a file type,
+which can be either <b>file</b> or <b>dir</b>.</li>
+</p>
+
+<p>For example, to list all entries - both files and directories in a given dir:
+<pre>
+for name, ftype in fs.find_files(ctx.sider_dir .. "modules") do
+    if name ~= "." and name ~= ".." then
+        log("Found: " .. name .. "(" .. ftype .. ")")
+    end
+end
+</pre>
+</p>
+
+<p>To recursivelly walk a directory structure, with all subdirectories:
+<pre>
+-- fsdemo.lua
+-- Demonstrates usage of fs.find_files function
+
+local m = {}
+
+local function walk(path)
+    for name, ftype in fs.find_files(path .. "\\*") do
+        if name ~= "." and name ~= ".." then
+            log(string.format("Found: %s\\%s (%s)", path, name, ftype))
+            if ftype == "dir" then
+                walk(path .. "\\" .. name)
+            end
+        end
+    end
+end
+
+function m.init(ctx)
+    -- list every file and every dir in BallServer content folder
+    walk(ctx.sider_dir .. "content\\ball-server")
+end
+
+return m
+</pre>
+</p>
+
+
+<a class="top" href="#">Top</a>
 <a name="zlib">
-<h3>9. Zlib library</h3>
+<h3>10. Zlib library</h3>
 </a>
 
 <p>This library contains a small set of utility functons to work with
@@ -1191,7 +1252,7 @@ if the input is not in WESYS-format, or <span class="file">nil</span>, if some e
 
 <a class="top" href="#">Top</a>
 <a name="audio">
-<h3>10. Audio library</h3>
+<h3>11. Audio library</h3>
 </a>
 
 <p>This library provides support for playing music and sound effects, which exist completely
