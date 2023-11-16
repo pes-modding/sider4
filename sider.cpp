@@ -5594,22 +5594,17 @@ logu_("set_kit:: radar_color ptr: %p\n", radar_color);
             // also apply shirt colors, because in non-exhibition games
             // they are important for color-matching of kits during initial kit selection
             TEAM_INFO_STRUCT *ti = (home_or_away == 0) ? _home_team_info : _away_team_info;
-            if (ti && decode_team_id(ti->team_id_encoded) == team_id) {
-                shirt_color = get_radar_color_addr(kit_id, _mi, ti);
-                /**
-                SHIRTCOLOR_STRUCT *scs = NULL;
-                if (kit_id < 2) {
-                    scs = &(ti->players[kit_id]);
+            if (ti && !IsBadReadPtr(ti, sizeof(struct TEAM_INFO_STRUCT))) {
+                if (ti && decode_team_id(ti->team_id_encoded) == team_id) {
+                    shirt_color = get_radar_color_addr(kit_id, _mi, ti);
+logu_("set_kit:: shirt_color ptr: %p\n", shirt_color);
                 }
                 else {
-                    scs = &(ti->extra_players[kit_id-2]);
+                    logu_("warning: unable to set shirt colors - team_id mismatch or team-info unknown\n");
                 }
-
-                shirt_color = scs->color1;
-                **/
             }
             else {
-                logu_("warning: unable to set shirt colors - team_id mismatch or team-info unknown\n");
+                logu_("warning: ti=%p is no longer a valid pointer. Skipping setting of shirt colors\n", ti);
             }
         }
 

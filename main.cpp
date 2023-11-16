@@ -71,7 +71,7 @@ HWND BuildWindow(int nCmdShow)
     xstyle = WS_EX_LEFT;
 
     retval = CreateWindowEx(xstyle,
-        L"SDRCLS64",      // class name
+        SIDERCLS,       // class name
         L"Sider 4", // title for our window (appears in the titlebar)
         style,
         CW_USEDEFAULT,  // initial x coordinate
